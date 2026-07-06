@@ -1,93 +1,180 @@
-// app/login/page.tsx
 'use client'
-import { useState } from 'react'
-import Image from 'next/image'
-import Link from 'next/link'
+import React, { useState, useEffect } from 'react'
+import { apiLogin } from '@/lib/api'
 
-export default function LoginPage() {
-  const [showPass, setShowPass] = useState(false)
-
+// ─── Stampa mascot SVG ────────────────────────────────────────────────────────
+function StampaFrog({ size = 64 }: { size?: number }) {
   return (
-    <div className="stampa-bg auth-wrap">
-      {/* ── Left: Form ── */}
-      <div className="auth-left fade-up">
-        <div className="auth-logo-wrap">
-          <Image src="/monster.png" alt="Monster" width={160} height={48} style={{ filter: 'brightness(0) invert(1)', width: 'auto', height: 44 }} />
-        </div>
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Eyes */}
+      <circle cx="32" cy="28" r="15" fill="#E46C31"/>
+      <circle cx="68" cy="28" r="15" fill="#E46C31"/>
+      <circle cx="32" cy="28" r="7" fill="#01231A"/>
+      <circle cx="68" cy="28" r="7" fill="#01231A"/>
+      <circle cx="35" cy="25" r="3" fill="#E46C31"/>
+      <circle cx="71" cy="25" r="3" fill="#E46C31"/>
+      {/* Body / snout */}
+      <ellipse cx="50" cy="50" rx="36" ry="14" fill="#E46C31"/>
+      {/* Left arm */}
+      <path d="M14 50 Q2 62 10 76" stroke="#E46C31" strokeWidth="9" strokeLinecap="round" fill="none"/>
+      {/* Right arm */}
+      <path d="M86 50 Q98 62 90 76" stroke="#E46C31" strokeWidth="9" strokeLinecap="round" fill="none"/>
+      {/* Legs */}
+      <path d="M38 63 Q35 78 30 88" stroke="#E46C31" strokeWidth="7" strokeLinecap="round" fill="none"/>
+      <path d="M62 63 Q65 78 70 88" stroke="#E46C31" strokeWidth="7" strokeLinecap="round" fill="none"/>
+      {/* Feet */}
+      <ellipse cx="27" cy="91" rx="11" ry="5" fill="#E46C31"/>
+      <ellipse cx="73" cy="91" rx="11" ry="5" fill="#E46C31"/>
+    </svg>
+  )
+}
 
-        <div className="auth-form-wrap">
-          <h1 className="auth-title">Bienvenido de vuelta</h1>
-          <p className="auth-sub">Inicia sesión en tu dashboard de fidelización</p>
-
-          {/* Email */}
-          <div className="form-group">
-            <label className="form-label">Correo electrónico</label>
-            <div className="form-input-wrap">
-              <svg className="form-input-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-              <input className="form-input" placeholder="tu@email.com" type="email" autoComplete="email" />
-            </div>
-          </div>
-
-          {/* Password */}
-          <div className="form-group">
-            <label className="form-label">Contraseña</label>
-            <div className="form-input-wrap">
-              <svg className="form-input-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              <input className="form-input" placeholder="••••••••" type={showPass ? 'text' : 'password'} autoComplete="current-password" />
-              <button className="form-input-eye" type="button" onClick={() => setShowPass(!showPass)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                {showPass
-                  ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"/></svg>
-                  : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                }
-              </button>
-            </div>
-            <p className="auth-forgot">¿Olvidaste tu contraseña?</p>
-          </div>
-
-          <Link href="/dashboard">
-            <button className="btn-orange">Iniciar sesión →</button>
-          </Link>
-
-          <div className="auth-divider">o continuar con</div>
-
-          <button className="btn-social">
-            <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-            Continuar con Google
-          </button>
-          <button className="btn-social">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
-            Continuar con Apple
-          </button>
-
-          <p className="auth-footer">
-            ¿No tienes cuenta?{' '}
-            <Link href="/register" className="auth-link">Regístrate gratis</Link>
-          </p>
-        </div>
-      </div>
-
-      {/* ── Right: Visual ── */}
-      <div className="auth-right">
-        <div style={{ position: 'relative', zIndex: 1 }} className="fade-up fade-up-2">
-          <div className="auth-stat-card">
-            <p className="auth-stat-label">Clientes Activos</p>
-            <p className="auth-stat-value">3,102</p>
-            <div className="auth-badge">↑ +8.1% este mes</div>
-            <div className="auth-bar-wrap">
-              {[['Free Coffee', 82], ['Free Pastry', 57], ['10% Desc.', 42]].map(([l, w]) => (
-                <div key={l} className="auth-bar-row">
-                  <span style={{ width: 76, flexShrink: 0 }}>{l}</span>
-                  <div className="auth-bar-track"><div className="auth-bar-fill" style={{ width: `${w}%` }} /></div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="auth-insight-pill">✦ La conversión del programa subió 12% este mes</div>
-          <div style={{ marginTop: 24, textAlign: 'center' }}>
-            <Image src="/monster.png" alt="Monster" width={100} height={30} style={{ filter: 'brightness(0) invert(1)', opacity: 0.22, height: 'auto' }} />
-          </div>
-        </div>
+function StampaLogo({ dark = false }: { dark?: boolean }) {
+  const color = dark ? '#01231A' : '#F7EFE8'
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+      <StampaFrog size={52} />
+      <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 22, color, letterSpacing: '0.08em', lineHeight: 1 }}>
+        STAMPA
       </div>
     </div>
+  )
+}
+
+const CSS = `
+  :root { --font-display: 'Plus Jakarta Sans', sans-serif; --font-body: 'Inter', sans-serif; }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-body); background: #FBF6EE; color: #2B2620; }
+  .lg-shell { min-height: 100vh; display: flex; }
+  /* Left */
+  .lg-left { width: 400px; flex-shrink: 0; background: #01231A; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 40px; gap: 40px; }
+  .lg-brand { display: flex; flex-direction: column; align-items: center; gap: 24px; }
+  .lg-tagline { font-family: var(--font-display); font-weight: 700; font-size: 28px; color: #F7EFE8; line-height: 1.25; text-align: center; }
+  .lg-tagline em { color: #E46C31; font-style: normal; }
+  .lg-manifesto { font-size: 14px; color: rgba(247,239,232,.5); line-height: 1.7; text-align: center; max-width: 280px; }
+  .lg-stats { display: flex; flex-direction: column; gap: 10px; }
+  .lg-stat { display: flex; align-items: center; gap: 12px; background: rgba(247,239,232,.06); border-radius: 12px; padding: 12px 16px; }
+  .lg-stat-icon { width: 32px; height: 32px; border-radius: 9px; background: rgba(228,108,49,.2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .lg-stat-label { font-size: 13px; color: rgba(247,239,232,.7); font-weight: 500; }
+  .lg-stat-sub { font-size: 11px; color: rgba(247,239,232,.35); margin-top: 2px; }
+  /* Right */
+  .lg-right { flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px; background: #FBF6EE; position: relative; overflow: hidden; }
+  .lg-right::before { content: ''; position: absolute; width: 600px; height: 600px; border-radius: 50%; background: rgba(230,108,49,.06); top: -200px; right: -200px; pointer-events: none; }
+  .lg-right::after { content: ''; position: absolute; width: 400px; height: 400px; border-radius: 50%; background: rgba(1,35,26,.04); bottom: -150px; left: -100px; pointer-events: none; }
+  .lg-card { background: #FFFFFF; border: 1px solid rgba(43,38,32,.08); border-radius: 24px; padding: 40px; width: 100%; max-width: 380px; box-shadow: 0 8px 40px rgba(43,38,32,.1); position: relative; z-index: 1; }
+  .lg-card-title { font-family: var(--font-display); font-weight: 700; font-size: 22px; color: #2B2620; margin-bottom: 4px; }
+  .lg-card-sub { font-size: 13px; color: rgba(43,38,32,.45); margin-bottom: 28px; }
+  .lg-field { margin-bottom: 16px; }
+  .lg-label { font-size: 11px; font-weight: 700; color: rgba(43,38,32,.5); text-transform: uppercase; letter-spacing: .06em; display: block; margin-bottom: 7px; }
+  .lg-input { width: 100%; padding: 13px 14px; font-size: 14px; border: 1.5px solid rgba(43,38,32,.12); border-radius: 12px; background: #FBF6EE; color: #2B2620; font-family: var(--font-body); outline: none; transition: border-color .15s; }
+  .lg-input:focus { border-color: #E46C31; background: #FFFFFF; }
+  .lg-error { font-size: 11.5px; color: #B23B3B; background: rgba(178,59,59,.07); border: 1px solid rgba(178,59,59,.2); border-radius: 9px; padding: 10px 14px; margin-bottom: 16px; }
+  .lg-btn { width: 100%; background: #E46C31; color: #fff; border: none; border-radius: 12px; padding: 14px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: var(--font-display); transition: background .15s; margin-top: 4px; }
+  .lg-btn:hover { background: #C85A20; }
+  .lg-btn:disabled { opacity: .6; cursor: not-allowed; }
+  .lg-forgot { text-align: right; margin-top: -8px; margin-bottom: 16px; }
+  .lg-forgot a { font-size: 12px; color: #E46C31; text-decoration: none; font-weight: 600; }
+  .lg-footer { text-align: center; margin-top: 20px; font-size: 12.5px; color: rgba(43,38,32,.4); }
+  .lg-footer a { color: #E46C31; text-decoration: none; font-weight: 600; }
+  @media (max-width: 768px) {
+    .lg-shell { flex-direction: column; }
+    .lg-left { width: 100%; padding: 36px 24px; gap: 24px; }
+    .lg-tagline { font-size: 22px; }
+    .lg-manifesto { display: none; }
+    .lg-right { padding: 24px; }
+    .lg-card { padding: 28px; }
+  }
+`
+
+function injectStyles() {
+  if (typeof document === 'undefined') return
+  if (document.getElementById('lg-css')) return
+  const s = document.createElement('style')
+  s.id = 'lg-css'
+  s.textContent = CSS
+  document.head.appendChild(s)
+}
+
+export default function LoginPage() {
+  const [email, setEmail]       = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState('')
+
+  useEffect(() => { injectStyles() }, [])
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!email || !password) { setError('Completá todos los campos'); return }
+    setLoading(true)
+    setError('')
+    try {
+      await apiLogin(email, password)
+      window.location.href = '/dashboard'
+    } catch (err: any) {
+      setError(err.error || 'Email o contraseña incorrectos')
+      setLoading(false)
+    }
+  }
+
+  return (
+    <>
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
+      <div className="lg-shell">
+        <div className="lg-left">
+          <div className="lg-brand">
+            <StampaLogo />
+            <div className="lg-tagline">La fidelidad no es<br/>un algoritmo.<br/><em>Es humana.</em></div>
+          </div>
+          <p className="lg-manifesto">
+            Cada sello es un gesto de reconocimiento. Una forma de agradecer a quienes eligen volver.
+          </p>
+          <div className="lg-stats">
+            {[
+              { icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#E46C31" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>, label: 'Tarjeta de sellos', sub: 'El cliente acumula sellos y canjea su premio' },
+              { icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#E46C31" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>, label: 'Puntos por visita', sub: 'Catálogo de premios canjeables con puntos' },
+              { icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#E46C31" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>, label: 'Membresía por tiers', sub: 'Bronze → Silver → Gold → Black' },
+            ].map(({ icon, label, sub }) => (
+              <div key={label} className="lg-stat">
+                <div className="lg-stat-icon">{icon}</div>
+                <div>
+                  <div className="lg-stat-label">{label}</div>
+                  <div className="lg-stat-sub">{sub}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="lg-right">
+          <div className="lg-card">
+            <div className="lg-card-title">Bienvenido de vuelta</div>
+            <div className="lg-card-sub">Iniciá sesión en tu dashboard</div>
+
+            {error && <div className="lg-error">{error}</div>}
+
+            <form onSubmit={handleSubmit}>
+              <div className="lg-field">
+                <label className="lg-label">Email</label>
+                <input className="lg-input" type="email" placeholder="tu@negocio.com" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" />
+              </div>
+              <div className="lg-field">
+                <label className="lg-label">Contraseña</label>
+                <input className="lg-input" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" />
+              </div>
+              <div className="lg-forgot"><a href="#">¿Olvidaste tu contraseña?</a></div>
+              <button className="lg-btn" type="submit" disabled={loading}>
+                {loading ? 'Ingresando...' : 'Ingresar al dashboard →'}
+              </button>
+            </form>
+
+            <div className="lg-footer">
+              ¿No tenés cuenta? <a href="/register">Registrate gratis</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   )
 }

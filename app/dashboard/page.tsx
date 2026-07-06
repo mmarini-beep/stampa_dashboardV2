@@ -1,430 +1,684 @@
 'use client'
-import { useState, useEffect } from 'react'
-import Image from 'next/image'
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell,
-} from 'recharts'
-import { mockData } from '@/app/data/mockData'
-import { Icons } from '@/app/components/icons'
+import React, { useState, useEffect, useRef } from 'react'
+import { mockData } from '@/data/mockData'
+import { detectLang, createT, LangContext } from '@/data/i18n'
+import { PlanProvider } from '@/data/plans'
+import { apiMe, getBusinessId, setBusinessId } from '@/lib/api'
+import { SettingsTab }       from '@/components/dashboard/SettingsTab'
+import { CustomersTab }      from '@/components/dashboard/CustomersTab'
+import { AnalyticsTab }      from '@/components/dashboard/AnalyticsTab'
+import { RewardsTab }        from '@/components/dashboard/RewardsTab'
+import { NotificationsTab }  from '@/components/dashboard/NotificationsTab'
+import { FormTab }           from '@/components/dashboard/FormTab'
+import { DesignTab }         from '@/components/dashboard/DesignTab'
+import { UsersTab }          from '@/components/dashboard/UsersTab'
 
-// ─── LOGO ─────────────────────────────────────────────────────────────────────
-const StampaLogo = ({ height = 32, opacity = 1 }: { height?: number; opacity?: number }) => (
-  <Image
-    src="/logo/stampa-logo.png"
-    alt="Stampa"
-    width={160}
-    height={48}
-    style={{ height, width: 'auto', filter: 'brightness(0) invert(1)', opacity, flexShrink: 0 }}
-  />
-)
+// ─── Types ────────────────────────────────────────────────────────────────────
+type TabId = 'overview' | 'customers' | 'analytics' | 'rewards' | 'notifications' | 'design' | 'form' | 'users' | 'settings'
 
-// ─── TOOLTIP ──────────────────────────────────────────────────────────────────
-const CT = ({ active, payload, label }: any) => {
-  if (!active || !payload?.length) return null
+// ─── Nav items ────────────────────────────────────────────────────────────────
+function NavIcon({ id }: { id: TabId }) {
+  const icons: Record<TabId, React.ReactNode> = {
+    overview:      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>,
+    customers:     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+    analytics:     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
+    rewards:       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>,
+    notifications: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>,
+    design:        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.4-.3-.4-.5-.8-.5-1.4 0-1.1.9-2 2-2h2.4c2.3 0 4.1-1.8 4.1-4.1C21.5 6 17.2 2 12 2z"/><circle cx="6.5" cy="11.5" r="1.5" fill="currentColor"/><circle cx="9.5" cy="7.5" r="1.5" fill="currentColor"/><circle cx="14.5" cy="7.5" r="1.5" fill="currentColor"/><circle cx="17.5" cy="11.5" r="1.5" fill="currentColor"/></svg>,
+    form:          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>,
+    users:         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+    settings:      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
+  }
+  return icons[id]
+}
+
+// ─── Sidebar ──────────────────────────────────────────────────────────────────
+const NAV_IDS: TabId[] = ['overview','customers','analytics','rewards','notifications','form','design','users','settings']
+
+function Sidebar({ active, setActive, collapsed, setCollapsed, t, mobileOpen, setMobileOpen }: {
+  active: TabId
+  setActive: (t: TabId) => void
+  collapsed: boolean
+  setCollapsed: (c: boolean) => void
+  t: (k: any) => string
+  mobileOpen: boolean
+  setMobileOpen: (o: boolean) => void
+}) {
+  const NAV_KEYS: Record<TabId, string> = {
+    overview:'nav_overview', customers:'nav_customers', analytics:'nav_analytics',
+    rewards:'nav_rewards', notifications:'nav_notifications', form:'nav_form',
+    design:'nav_design', users:'nav_users', settings:'nav_settings',
+  }
+
   return (
-    <div className="ctt">
-      <div className="ctl">{label}</div>
-      {payload.map((p: any, i: number) => (
-        <div key={i} className="ctv" style={{ color: p.color }}>{p.name}: {p.value.toLocaleString()}</div>
-      ))}
-    </div>
+    <>
+      {/* Mobile overlay */}
+      {mobileOpen && <div className="sb-overlay" onClick={() => setMobileOpen(false)} />}
+
+      <aside className={`db-sb${collapsed ? ' db-sb--collapsed' : ''}${mobileOpen ? ' db-sb--mobile-open' : ''}`}>
+        {/* Logo */}
+        <div className="sb-logo">
+          <div className="sb-logo-mark">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.4-.3-.4-.5-.8-.5-1.4 0-1.1.9-2 2-2h2.4c2.3 0 4.1-1.8 4.1-4.1C21.5 6 17.2 2 12 2z"/><circle cx="6.5" cy="11.5" r="1.5" fill="#fff"/><circle cx="9.5" cy="7.5" r="1.5" fill="#fff"/></svg>
+          </div>
+          {!collapsed && <span className="sb-wordmark">Stampa</span>}
+        </div>
+
+        {/* Nav */}
+        <nav className="sb-nav">
+          {NAV_IDS.map(id => (
+            <button
+              key={id}
+              className={`sb-item${active === id ? ' sb-item--on' : ''}`}
+              onClick={() => { setActive(id); setMobileOpen(false) }}
+              title={collapsed ? t(NAV_KEYS[id] as any) : undefined}
+            >
+              <NavIcon id={id} />
+              {!collapsed && <span className="sb-item-label">{t(NAV_KEYS[id] as any)}</span>}
+              {collapsed && active === id && <div className="sb-active-dot" />}
+            </button>
+          ))}
+        </nav>
+
+        {/* Footer: user + collapse */}
+        <div className="sb-footer">
+          {!collapsed && (
+            <div className="sb-user">
+              <div className="sb-user-av">MG</div>
+              <div>
+                <div className="sb-user-name">María Gómez</div>
+                <div className="sb-user-role">{t('nav_settings' as any)}</div>
+              </div>
+            </div>
+          )}
+          <button className="sb-collapse-btn" onClick={() => setCollapsed(!collapsed)} title={collapsed ? 'Expandir' : 'Contraer'}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              {collapsed
+                ? <path d="M9 18l6-6-6-6"/>
+                : <path d="M15 18l-6-6 6-6"/>}
+            </svg>
+          </button>
+        </div>
+      </aside>
+    </>
   )
 }
 
-// ─── SIDEBAR ──────────────────────────────────────────────────────────────────
-const navItems = [
-  { icon: 'Overview',  label: 'Overview',    id: 'overview'   },
-  { icon: 'Users',     label: 'Usuarios',    id: 'users'      },
-  { icon: 'Analytics', label: 'Analytics',   id: 'analytics'  },
-  { icon: 'Rewards',   label: 'Recompensas', id: 'rewards'    },
-  { icon: 'Settings',  label: 'Ajustes',     id: 'settings'   },
-]
+// ─── Header ───────────────────────────────────────────────────────────────────
+function Header({ title, t, setMobileOpen }: { title: string; t: (k: any) => string; setMobileOpen: (o: boolean) => void }) {
+  const [search, setSearch] = useState('')
+  const [showSearch, setShowSearch] = useState(false)
+  const [showNotif, setShowNotif] = useState(false)
+  const [showUser, setShowUser] = useState(false)
+  const searchRef = useRef<HTMLDivElement>(null)
+  const notifRef  = useRef<HTMLDivElement>(null)
+  const userRef   = useRef<HTMLDivElement>(null)
 
-const Sidebar = ({ col, setCol, act, setAct }: any) => (
-  <div className={`sb ${col ? 'col' : ''}`}>
-    <div className="sblogo">
-      <StampaLogo height={col ? 24 : 30} />
-    </div>
-    {!col && <div className="sbsec">Menú</div>}
-    {navItems.map(({ icon, label, id }) => (
-      <div key={id} className={`sbi ${act === id ? 'on' : ''}`} onClick={() => setAct(id)}>
-        {Icons[icon]?.(18)}{!col && label}
-      </div>
-    ))}
-    <div className="sbsp" />
-    <div className="sbtog" onClick={() => setCol(!col)}>
-      {col ? Icons.ChevRight(15) : <>{Icons.ChevLeft(15)}<span>Colapsar</span></>}
-    </div>
-    {!col && (
-      <div className="sbusr">
-        <div className="sbav">MG</div>
-        <div><div className="sbun">María Gómez</div><div className="sbur">Administrador</div></div>
-      </div>
-    )}
-  </div>
-)
-
-// ─── HEADER ───────────────────────────────────────────────────────────────────
-const Header = ({ title }: { title: string }) => (
-  <div className="dh">
-    <div className="dht">{title}</div>
-    <div className="dhs">{Icons.Search(14)}<input placeholder="Buscar..." /></div>
-    <div className="ib">{Icons.Bell(16)}<div className="nd" /></div>
-    <div className="hav">MG</div>
-  </div>
-)
-
-// ─── METRIC CARD ──────────────────────────────────────────────────────────────
-const MetricCard = ({ label, value, delta, iconKey, color, delay }: any) => {
-  const up = delta >= 0
-  return (
-    <div className={`gc fu f${delay}`} style={{ cursor: 'default' }}>
-      <div className="mct">
-        <div className="mi" style={{ background: `${color}18` }}>
-          <span style={{ color }}>{Icons[iconKey]?.(20)}</span>
-        </div>
-        <div className={`db ${up ? 'up' : 'dn'}`}>
-          <span>{up ? '↑' : '↓'}</span>{Math.abs(delta)}%
-        </div>
-      </div>
-      <div className="mv">{value.toLocaleString()}</div>
-      <div className="mlb">{label}</div>
-    </div>
+  const customers = mockData.customers.filter(c =>
+    search.length > 1 && (
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      c.email.toLowerCase().includes(search.toLowerCase())
+    )
   )
-}
 
-// ─── GROWTH CHART ─────────────────────────────────────────────────────────────
-const GrowthChart = () => (
-  <div className="gc fu f1">
-    <div className="ch">
-      <div><div className="ct2">Crecimiento de Clientes</div><div className="cs">Registros mensuales</div></div>
-      <div className="cpill">Últimos 6 meses</div>
-    </div>
-    <ResponsiveContainer width="100%" height={195}>
-      <BarChart data={mockData.customerGrowth} barSize={28}>
-        <CartesianGrid vertical={false} stroke="rgba(255,255,255,.05)" />
-        <XAxis dataKey="month" tick={{ fill: 'var(--t2)', fontSize: 12 }} axisLine={false} tickLine={false} />
-        <YAxis tick={{ fill: 'var(--t2)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${(v / 1000).toFixed(1)}k`} />
-        <Tooltip content={<CT />} cursor={{ fill: 'rgba(255,255,255,.03)' }} />
-        <Bar dataKey="users" name="Usuarios" fill="#E8622A" radius={[6, 6, 0, 0]} />
-      </BarChart>
-    </ResponsiveContainer>
-  </div>
-)
-
-// ─── DISTRIBUTION CHART ───────────────────────────────────────────────────────
-const DistChart = () => (
-  <div className="gc fu f2">
-    <div className="ch">
-      <div><div className="ct2">Distribución</div><div className="cs">Activos vs Inactivos</div></div>
-    </div>
-    <ResponsiveContainer width="100%" height={148}>
-      <PieChart>
-        <Pie data={mockData.userDistribution} cx="50%" cy="50%" innerRadius={48} outerRadius={68} paddingAngle={4} dataKey="value" startAngle={90} endAngle={-270}>
-          {mockData.userDistribution.map((e: any, i: number) => <Cell key={i} fill={e.color} stroke="none" />)}
-        </Pie>
-      </PieChart>
-    </ResponsiveContainer>
-    <div className="pl2">
-      {mockData.userDistribution.map((e: any) => (
-        <div key={e.name} className="plr">
-          <div className="pld"><div style={{ width: 9, height: 9, borderRadius: 3, background: e.color, flexShrink: 0 }} />{e.name}</div>
-          <div className="plv">{e.value.toLocaleString()}</div>
-        </div>
-      ))}
-    </div>
-  </div>
-)
-
-// ─── LOYALTY CHART ────────────────────────────────────────────────────────────
-const LoyaltyChart = () => (
-  <div className="gc fu f1">
-    <div className="ch">
-      <div><div className="ct2">Rendimiento del Programa</div><div className="cs">Sellos vs canjes</div></div>
-      <div style={{ display: 'flex', gap: 12, fontSize: 11, color: 'var(--t2)', alignItems: 'center' }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 2, background: '#E8622A', display: 'inline-block' }} /> Sellos</span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 2, background: 'var(--blu)', display: 'inline-block' }} /> Canjes</span>
-      </div>
-    </div>
-    <ResponsiveContainer width="100%" height={195}>
-      <BarChart data={mockData.loyaltyPerformance} barGap={4} barSize={18}>
-        <CartesianGrid vertical={false} stroke="rgba(255,255,255,.05)" />
-        <XAxis dataKey="month" tick={{ fill: 'var(--t2)', fontSize: 12 }} axisLine={false} tickLine={false} />
-        <YAxis tick={{ fill: 'var(--t2)', fontSize: 11 }} axisLine={false} tickLine={false} />
-        <Tooltip content={<CT />} cursor={{ fill: 'rgba(255,255,255,.03)' }} />
-        <Bar dataKey="stamps"   name="Sellos" fill="#E8622A"      radius={[4, 4, 0, 0]} />
-        <Bar dataKey="redeemed" name="Canjes" fill="var(--blu)"   radius={[4, 4, 0, 0]} />
-      </BarChart>
-    </ResponsiveContainer>
-  </div>
-)
-
-// ─── CONVERSION CARD ──────────────────────────────────────────────────────────
-const ConvCard = () => {
-  const d = mockData.programConversion
-  return (
-    <div className="gc fu f2" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div><div className="ct2">Conversión del Programa</div><div className="cs">Pipeline sello → recompensa</div></div>
-      <div className="cvs"><span className="cvsl">Usuarios con sellos</span><span className="cvsv">{d.usersWithStamps.toLocaleString()}</span></div>
-      <div className="cvs"><span className="cvsl">Recompensas canjeadas</span><span className="cvsv">{d.rewardsRedeemed}</span></div>
-      <div className="crb">
-        <div className="crbl">Tasa de conversión</div>
-        <div className="crbv">{d.conversionRate}%</div>
-      </div>
-    </div>
-  )
-}
-
-// ─── ADVANCED METRICS ─────────────────────────────────────────────────────────
-const advC = [
-  { icon: 'Refresh', name: 'Clientes Recurrentes', val: '68.4%', desc: 'Regresan más de una vez' },
-  { icon: 'Award',   name: 'Sellos Promedio',       val: '6.6',   desc: 'Por usuario activo'     },
-  { icon: 'Percent', name: 'Tasa de Canje',         val: '42.3%', desc: 'Del total disponible'   },
-  { icon: 'Clock',   name: 'Visitas para Premio',   val: '4.2',   desc: 'Promedio de visitas'     },
-]
-const AdvancedRow = () => (
-  <div className="ag2">
-    {advC.map((c, i) => (
-      <div key={i} className={`gc fu f${i + 1}`} style={{ cursor: 'default' }}>
-        <div className="aic"><span>{Icons[c.icon]?.(18)}</span></div>
-        <div className="av2">{c.val}</div>
-        <div className="an2">{c.name}</div>
-        <div className="ad2">{c.desc}</div>
-      </div>
-    ))}
-  </div>
-)
-
-// ─── TOP REWARDS ──────────────────────────────────────────────────────────────
-const TopRewards = () => (
-  <div className="gc fu f1">
-    <div className="ch"><div><div className="ct2">Top Recompensas</div><div className="cs">Más canjeadas este período</div></div></div>
-    {mockData.topRewards.map((r: any, i: number) => (
-      <div key={i} className="ri">
-        <div className={`rr2 ${i === 0 ? 'g' : ''}`}>{i + 1}</div>
-        <div className="rinfo">
-          <div className="rn">{r.name}</div>
-          <div className="rtr"><div className="rf" style={{ width: `${(r.redeemed / r.max) * 100}%` }} /></div>
-        </div>
-        <div className="rc2">{r.redeemed}</div>
-      </div>
-    ))}
-  </div>
-)
-
-// ─── RECENT ACTIVITY ──────────────────────────────────────────────────────────
-const ini = (n: string) => n.split(' ').map((w: string) => w[0]).join('')
-const RecentActivity = () => (
-  <div className="gc fu f2">
-    <div className="ch">
-      <div><div className="ct2">Actividad Reciente</div><div className="cs">Feed en vivo</div></div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--grn)' }}><div className="ld" />En vivo</div>
-    </div>
-    {mockData.recentActivity.map((a: any) => (
-      <div key={a.id} className="aci">
-        <div className={`aav ${a.type}`}>{ini(a.user)}</div>
-        <div className="at2"><b>{a.user}</b> {a.action}{a.reward ? ` · ${a.reward}` : ''}</div>
-        <div className="atm">{a.time}</div>
-      </div>
-    ))}
-  </div>
-)
-
-// ─── SMART INSIGHTS ───────────────────────────────────────────────────────────
-const SmartInsights = () => (
-  <div className="gc fu f3">
-    <div className="ch" style={{ marginBottom: 14 }}>
-      <div>
-        <div className="ct2" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-          <span style={{ color: 'var(--org)' }}>{Icons.Zap(15)}</span>Smart Insights
-        </div>
-        <div className="cs">Recomendaciones automáticas</div>
-      </div>
-    </div>
-    {mockData.insights.map((ins: any) => (
-      <div key={ins.id} className={`ii ${ins.type}`}>
-        <div className={`iico ${ins.type}`}><span>{Icons[ins.icon]?.(14)}</span></div>
-        <div className="itx">{ins.text}</div>
-      </div>
-    ))}
-  </div>
-)
-
-// ─── OVERVIEW PAGE ────────────────────────────────────────────────────────────
-const Overview = () => {
-  const m = mockData.metrics
-  return (
-    <div className="dc">
-      <div className="rl">Métricas Principales</div>
-      <div className="mg">
-        <MetricCard label="Total Usuarios"     value={m.totalUsers}    delta={m.totalUsersDelta}    iconKey="Users"     color="#E8622A" delay={1} />
-        <MetricCard label="Usuarios Activos"   value={m.activeUsers}   delta={m.activeUsersDelta}   iconKey="UserCheck" color="#3DBF8A" delay={2} />
-        <MetricCard label="Nuevos Registros"   value={m.newSignUps}    delta={m.newSignUpsDelta}    iconKey="UserPlus"  color="#5B9FE0" delay={3} />
-        <MetricCard label="Usuarios Inactivos" value={m.inactiveUsers} delta={m.inactiveUsersDelta} iconKey="UserX"     color="#E05252" delay={4} />
-      </div>
-
-      <div className="rl">Análisis de Crecimiento</div>
-      <div className="cg2"><GrowthChart /><DistChart /></div>
-
-      <div className="rl">Rendimiento del Programa</div>
-      <div className="lg2"><LoyaltyChart /><ConvCard /></div>
-
-      <div className="rl">Métricas Avanzadas</div>
-      <AdvancedRow />
-
-      <div className="rl">Engagement</div>
-      <div className="eg2"><TopRewards /><RecentActivity /><SmartInsights /></div>
-    </div>
-  )
-}
-
-// ─── STYLES ───────────────────────────────────────────────────────────────────
-const injectStyles = () => {
-  if (document.getElementById('st-css')) return
-  const s = document.createElement('style')
-  s.id = 'st-css'
-  s.textContent = `
-    @import url('https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap');
-    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-    :root{
-      --org:#E8622A;--org2:#D45520;--odim:rgba(232,98,42,.14);--oglow:rgba(232,98,42,.26);
-      --card:rgba(13,38,31,.80);--cb:rgba(255,255,255,.08);
-      --t1:#F5EFE6;--t2:rgba(245,239,230,.58);--t3:rgba(245,239,230,.26);
-      --grn:#3DBF8A;--red:#E05252;--blu:#5B9FE0;
-      --sw:248px;--hh:66px;--r:14px;--rl:18px;--sh:0 8px 32px rgba(0,0,0,.36);
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowSearch(false)
+      if (notifRef.current  && !notifRef.current.contains(e.target as Node))  setShowNotif(false)
+      if (userRef.current   && !userRef.current.contains(e.target as Node))   setShowUser(false)
     }
-    body{font-family:'DM Sans',sans-serif;background:#0C211C;color:var(--t1);}
-    ::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:3px;}
-    .bg{min-height:100vh;background:radial-gradient(ellipse 80% 60% at 50% -5%,rgba(52,108,86,.48) 0%,transparent 70%),radial-gradient(ellipse 55% 45% at 90% 85%,rgba(22,62,48,.38) 0%,transparent 60%),radial-gradient(ellipse 45% 40% at 6% 65%,rgba(30,72,56,.32) 0%,transparent 60%),linear-gradient(155deg,#122d20 0%,#0c211c 50%,#091b17 100%);}
-    .dw{display:flex;height:100vh;overflow:hidden;}
-    .sb{width:var(--sw);flex-shrink:0;background:rgba(8,22,17,.90);backdrop-filter:blur(24px);border-right:1px solid var(--cb);display:flex;flex-direction:column;padding:20px 14px;transition:width .3s;overflow:hidden;}
-    .sb.col{width:66px;}
-    .sblogo{display:flex;align-items:center;gap:10px;padding:6px 6px 22px;overflow:hidden;white-space:nowrap;}
-    .sbsec{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--t3);padding:0 10px;margin:8px 0 6px;white-space:nowrap;overflow:hidden;}
-    .sbi{display:flex;align-items:center;gap:12px;padding:10px;border-radius:10px;cursor:pointer;color:var(--t2);font-size:14px;font-weight:500;transition:all .15s;position:relative;white-space:nowrap;overflow:hidden;margin-bottom:2px;}
-    .sbi:hover{background:rgba(255,255,255,.06);color:var(--t1);}
-    .sbi.on{background:var(--odim);color:var(--org);}
-    .sbi.on::before{content:'';position:absolute;left:0;top:15%;bottom:15%;width:3px;background:var(--org);border-radius:0 3px 3px 0;}
-    .sbsp{flex:1;}
-    .sbtog{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:9px;cursor:pointer;color:var(--t3);font-size:12px;transition:all .15s;}
-    .sbtog:hover{color:var(--t2);}
-    .sbusr{display:flex;align-items:center;gap:10px;padding:12px 10px;border-top:1px solid var(--cb);margin-top:8px;white-space:nowrap;overflow:hidden;}
-    .sbav{width:32px;height:32px;border-radius:50%;background:var(--org);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;color:#fff;flex-shrink:0;}
-    .sbun{font-size:13px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-    .sbur{font-size:11px;color:var(--t2);}
-    .dm{flex:1;display:flex;flex-direction:column;overflow:hidden;}
-    .dh{height:var(--hh);flex-shrink:0;background:rgba(8,22,17,.84);backdrop-filter:blur(20px);border-bottom:1px solid var(--cb);display:flex;align-items:center;padding:0 26px;gap:14px;}
-    .dht{font-family:'Syne',sans-serif;font-weight:700;font-size:18px;flex:1;}
-    .dhs{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.05);border:1px solid var(--cb);border-radius:10px;padding:9px 14px;width:210px;transition:all .2s;}
-    .dhs:focus-within{border-color:rgba(232,98,42,.35);background:rgba(232,98,42,.05);}
-    .dhs input{background:none;border:none;outline:none;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--t1);width:100%;}
-    .dhs input::placeholder{color:var(--t3);}
-    .ib{width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,.05);border:1px solid var(--cb);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--t2);transition:all .15s;position:relative;flex-shrink:0;}
-    .ib:hover{background:rgba(255,255,255,.09);color:var(--t1);}
-    .nd{position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:50%;background:var(--org);border:1.5px solid #0C211C;}
-    .hav{width:36px;height:36px;border-radius:50%;background:var(--org);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:#fff;cursor:pointer;border:2px solid rgba(232,98,42,.3);flex-shrink:0;}
-    .dc{flex:1;overflow-y:auto;padding:24px 26px;display:flex;flex-direction:column;gap:20px;}
-    .rl{font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--t3);font-weight:600;display:flex;align-items:center;gap:10px;margin-bottom:-4px;}
-    .rl::after{content:'';flex:1;height:1px;background:var(--cb);}
-    .gc{background:var(--card);backdrop-filter:blur(16px);border:1px solid var(--cb);border-radius:var(--rl);padding:22px;transition:border-color .2s;}
-    .gc:hover{border-color:rgba(255,255,255,.13);}
-    .mg{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
-    .mct{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;}
-    .mi{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;}
-    .db{display:flex;align-items:center;gap:3px;font-size:12px;font-weight:600;padding:4px 9px;border-radius:20px;}
-    .db.up{background:rgba(61,191,138,.12);color:var(--grn);}
-    .db.dn{background:rgba(224,82,82,.12);color:var(--red);}
-    .mv{font-family:'Syne',sans-serif;font-size:34px;font-weight:700;line-height:1;margin-bottom:6px;}
-    .mlb{font-size:13px;color:var(--t2);}
-    .cg2{display:grid;grid-template-columns:1fr 320px;gap:14px;}
-    .lg2{display:grid;grid-template-columns:1fr 290px;gap:14px;}
-    .ag2{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
-    .eg2{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
-    .ch{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;}
-    .ct2{font-family:'Syne',sans-serif;font-weight:600;font-size:15px;margin-bottom:3px;}
-    .cs{font-size:12px;color:var(--t2);}
-    .cpill{font-size:11px;color:var(--t2);background:rgba(255,255,255,.05);border:1px solid var(--cb);border-radius:7px;padding:4px 10px;flex-shrink:0;}
-    .pl2{margin-top:14px;display:flex;flex-direction:column;gap:10px;}
-    .plr{display:flex;align-items:center;justify-content:space-between;}
-    .pld{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--t2);}
-    .plv{font-family:'Syne',sans-serif;font-weight:600;font-size:14px;}
-    .cvs{display:flex;align-items:center;justify-content:space-between;padding:13px 14px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid var(--cb);}
-    .cvsl{font-size:13px;color:var(--t2);}
-    .cvsv{font-family:'Syne',sans-serif;font-size:20px;font-weight:700;}
-    .crb{background:var(--odim);border:1px solid var(--oglow);border-radius:12px;padding:18px;text-align:center;}
-    .crbl{font-size:11px;color:var(--org);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;}
-    .crbv{font-family:'Syne',sans-serif;font-size:40px;font-weight:700;color:var(--org);}
-    .aic{width:40px;height:40px;border-radius:10px;background:var(--odim);border:1px solid var(--oglow);display:flex;align-items:center;justify-content:center;color:var(--org);margin-bottom:14px;}
-    .av2{font-family:'Syne',sans-serif;font-size:30px;font-weight:700;margin-bottom:4px;}
-    .an2{font-size:13px;font-weight:600;margin-bottom:2px;}
-    .ad2{font-size:12px;color:var(--t2);}
-    .ri{display:flex;align-items:center;gap:12px;margin-bottom:13px;}
-    .ri:last-child{margin-bottom:0;}
-    .rr2{width:24px;height:24px;border-radius:7px;background:rgba(255,255,255,.05);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--t3);flex-shrink:0;}
-    .rr2.g{background:var(--odim);color:var(--org);}
-    .rinfo{flex:1;}
-    .rn{font-size:13px;font-weight:500;margin-bottom:5px;}
-    .rtr{height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden;}
-    .rf{height:100%;background:linear-gradient(90deg,#E8622A,#F5A072);border-radius:3px;}
-    .rc2{font-size:12px;color:var(--t2);font-weight:600;flex-shrink:0;}
-    .aci{display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid var(--cb);}
-    .aci:last-child{border-bottom:none;}
-    .aav{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;font-family:'Syne',sans-serif;}
-    .aav.redeem{background:var(--odim);color:var(--org);}
-    .aav.signup{background:rgba(61,191,138,.15);color:var(--grn);}
-    .aav.login{background:rgba(91,159,224,.15);color:var(--blu);}
-    .at2{flex:1;font-size:13px;color:var(--t2);}
-    .at2 b{color:var(--t1);font-weight:600;}
-    .atm{font-size:11px;color:var(--t3);}
-    .ii{display:flex;align-items:flex-start;gap:11px;padding:12px 13px;border-radius:11px;background:rgba(255,255,255,.03);border:1px solid var(--cb);margin-bottom:9px;transition:border-color .15s;}
-    .ii:last-child{margin-bottom:0;}
-    .ii:hover{border-color:rgba(255,255,255,.12);}
-    .ii.positive{border-left:2.5px solid var(--grn);}
-    .ii.warning{border-left:2.5px solid var(--org);}
-    .ii.info{border-left:2.5px solid var(--blu);}
-    .iico{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-    .iico.positive{background:rgba(61,191,138,.12);color:var(--grn);}
-    .iico.warning{background:var(--odim);color:var(--org);}
-    .iico.info{background:rgba(91,159,224,.12);color:var(--blu);}
-    .itx{font-size:13px;color:var(--t2);line-height:1.5;padding-top:5px;}
-    .ctt{background:rgba(7,20,16,.95);border:1px solid var(--cb);border-radius:9px;padding:10px 14px;font-size:12.5px;backdrop-filter:blur(12px);}
-    .ctl{color:var(--t2);font-size:11px;margin-bottom:4px;}
-    .ctv{font-family:'Syne',sans-serif;font-weight:600;}
-    @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
-    .ld{width:7px;height:7px;border-radius:50%;background:var(--grn);animation:pulse 1.5s infinite;}
-    @keyframes fu{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
-    .fu{animation:fu .5s ease both;}
-    .f1{animation-delay:.05s;}.f2{animation-delay:.1s;}.f3{animation-delay:.15s;}.f4{animation-delay:.2s;}
-  `
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const recentActivity = mockData.recentActivity.slice(0, 4)
+
+  return (
+    <header className="db-header">
+      {/* Mobile hamburger */}
+      <button className="hd-hamburger" onClick={() => setMobileOpen(true)}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+
+      <h1 className="hd-title">{title}</h1>
+
+      <div className="hd-right">
+        {/* Search */}
+        <div className="hd-search-wrap" ref={searchRef}>
+          <div className="hd-search">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input
+              placeholder={t('search_placeholder' as any)}
+              value={search}
+              onChange={e => { setSearch(e.target.value); setShowSearch(true) }}
+              onFocus={() => setShowSearch(true)}
+            />
+          </div>
+          {showSearch && search.length > 1 && (
+            <div className="hd-dropdown hd-search-dropdown">
+              {customers.length === 0
+                ? <div className="hd-empty">{t('no_results' as any)}</div>
+                : customers.slice(0, 5).map((c: any) => (
+                    <div key={c.id} className="hd-search-row" onClick={() => { setSearch(''); setShowSearch(false) }}>
+                      <div className="hd-srch-av">{c.name.split(' ').map((w: string) => w[0]).join('').slice(0,2)}</div>
+                      <div>
+                        <div className="hd-srch-name">{c.name}</div>
+                        <div className="hd-srch-email">{c.email}</div>
+                      </div>
+                      <div className="hd-srch-prog">{c.progress}/{c.total}</div>
+                    </div>
+                  ))
+              }
+            </div>
+          )}
+        </div>
+
+        {/* Notifications */}
+        <div className="hd-icon-wrap" ref={notifRef}>
+          <button className="hd-icon-btn" onClick={() => { setShowNotif(!showNotif); setShowUser(false) }}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span className="hd-notif-dot" />
+          </button>
+          {showNotif && (
+            <div className="hd-dropdown hd-notif-dropdown">
+              <div className="hd-drop-head">
+                <span className="hd-drop-title">{t('notifications_title' as any)}</span>
+                <button className="hd-mark-read">{t('mark_all_read' as any)}</button>
+              </div>
+              {recentActivity.map((a: any) => (
+                <div key={a.id} className="hd-notif-row">
+                  <div className={`hd-notif-av hd-notif-av--${a.type}`}>
+                    {a.user.split(' ').map((w: string) => w[0]).join('').slice(0,2)}
+                  </div>
+                  <div className="hd-notif-info">
+                    <div className="hd-notif-text"><strong>{a.user}</strong> {a.action}{a.reward ? ` · ${a.reward}` : ''}</div>
+                    <div className="hd-notif-time">{a.time}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* User menu */}
+        <div className="hd-icon-wrap" ref={userRef}>
+          <button className="hd-avatar-btn" onClick={() => { setShowUser(!showUser); setShowNotif(false) }}>
+            MG
+          </button>
+          {showUser && (
+            <div className="hd-dropdown hd-user-dropdown">
+              <div className="hd-user-head">
+                <div className="hd-user-av-lg">MG</div>
+                <div>
+                  <div className="hd-user-name">María Gómez</div>
+                  <div className="hd-user-email">maria@stampa.com</div>
+                </div>
+              </div>
+              <div className="hd-drop-divider" />
+              {[
+                { label: t('my_profile' as any), icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> },
+                { label: t('go_to_settings' as any), icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06-.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> },
+              ].map(({ label, icon }) => (
+                <button key={label} className="hd-user-item" onClick={() => setShowUser(false)}>
+                  {icon} {label}
+                </button>
+              ))}
+              <div className="hd-drop-divider" />
+              <button className="hd-user-item hd-user-item--danger" onClick={() => setShowUser(false)}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                {t('logout' as any)}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </header>
+  )
+}
+
+// ─── Overview ─────────────────────────────────────────────────────────────────
+function OverviewTab({ t }: { t: (k: any) => string }) {
+  const m = mockData.metrics
+  const activeCards = mockData.cardDesigns.filter((c: any) => c.isActive)
+  const hasStamp      = activeCards.some((c: any) => c.type === 'stamp')
+  const hasMembership = activeCards.some((c: any) => c.type === 'membership')
+  const hasPoints     = activeCards.some((c: any) => c.type === 'points')
+  const initials = (n: string) => n.split(' ').map((w: string) => w[0]).join('')
+
+  const ADVANCED = [
+    { v: '68.4%', l: t('recurring' as any),       color: '#5B8C5A',  bg: 'rgba(91,140,90,.1)'   },
+    { v: '6.6',   l: t('avg_progress' as any),    color: '#185FA5',  bg: 'rgba(24,95,165,.1)'   },
+    { v: '42.3%', l: t('redemption_rate' as any), color: '#C75D3A',  bg: 'rgba(199,93,58,.1)'   },
+    { v: '4.2',   l: t('visits_to_prize' as any), color: '#9C7530',  bg: 'rgba(212,162,76,.15)' },
+  ]
+
+  const TIER_MEMBERS: Record<string, number> = { '1': 111, '2': 89, '3': 52, '4': 15 }
+
+  return (
+    <div className="db-content">
+      {/* Core metrics */}
+      <div className="ov-section-label">{t('section_growth' as any)}</div>
+      <div className="ov-metric-grid">
+        {[
+          { label: t('total_customers' as any), value: m.totalUsers,    delta: m.totalUsersDelta,    color: '#C75D3A' },
+          { label: t('active' as any),          value: m.activeUsers,   delta: m.activeUsersDelta,   color: '#5B8C5A' },
+          { label: t('new_signups' as any),     value: m.newSignUps,    delta: m.newSignUpsDelta,    color: '#185FA5' },
+          { label: t('inactive' as any),        value: m.inactiveUsers, delta: m.inactiveUsersDelta, color: '#B23B3B' },
+        ].map(({ label, value, delta, color }) => (
+          <div key={label} className="ov-metric-card">
+            <div className="ov-metric-top">
+              <div className="ov-metric-dot" style={{ background: `${color}20` }}>
+                <div style={{ width: 9, height: 9, borderRadius: '50%', background: color }} />
+              </div>
+              <span className={`ov-delta ${delta >= 0 ? 'ov-delta--up' : 'ov-delta--down'}`}>
+                {delta >= 0 ? '↑' : '↓'} {Math.abs(delta)}%
+              </span>
+            </div>
+            <div className="ov-metric-value">{value.toLocaleString()}</div>
+            <div className="ov-metric-label">{label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Growth chart + near prize */}
+      <div className="ov-two-col">
+        <div className="db-card">
+          <div className="ov-card-title">{t('customer_growth' as any)}</div>
+          <div className="ov-card-sub">{t('last_6_months' as any)}</div>
+          <div className="ov-bars">
+            {mockData.customerGrowth.map(({ month, users }: any) => (
+              <div key={month} className="ov-bar-col">
+                <div className="ov-bar-fill" style={{ height: `${(users / 5000) * 100}%` }} />
+                <div className="ov-bar-label">{month}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="db-card ov-near-card">
+          <div className="ov-card-title">{t('near_prize' as any)}</div>
+          <div className="ov-card-sub">{t('near_prize_sub' as any)}</div>
+          <div className="ov-near-num">{m.nearPrize}</div>
+          <div className="ov-near-label">{t('customers_label' as any)}</div>
+        </div>
+      </div>
+
+      {/* Advanced metrics — colored */}
+      <div className="ov-section-label">{t('section_advanced' as any)}</div>
+      <div className="ov-adv-grid">
+        {ADVANCED.map(({ v, l, color, bg }) => (
+          <div key={l} className="ov-adv-card" style={{ borderTop: `3px solid ${color}` }}>
+            <div className="ov-adv-val" style={{ color }}>{v}</div>
+            <div className="ov-adv-label">{l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Engagement — conditional per active cards */}
+      <div className="ov-section-label">{t('section_engagement' as any)}</div>
+      <div className="ov-three-col">
+        {/* Top rewards (stamp/points) */}
+        {(hasStamp || hasPoints) && (
+          <div className="db-card">
+            <div className="ov-card-title-row">
+              <span className="ov-card-title">{t('top_rewards' as any)}</span>
+            </div>
+            {mockData.topRewards.map((r: any, i: number) => (
+              <div key={r.name} className="ov-reward-row">
+                <span className={`ov-reward-rank${i === 0 ? ' ov-reward-rank--first' : ''}`}>{i + 1}</span>
+                <div className="ov-reward-info">
+                  <div className="ov-reward-name">{r.name}</div>
+                  <div className="ov-reward-bar"><div className="ov-reward-fill" style={{ width: `${(r.redeemed / r.max) * 100}%` }} /></div>
+                </div>
+                <span className="ov-reward-count">{r.redeemed}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Membership tier distribution */}
+        {hasMembership && (
+          <div className="db-card">
+            <div className="ov-card-title">{t('tier_distribution' as any)}</div>
+            {mockData.membershipTiers.map((tier: any) => {
+              const count = TIER_MEMBERS[tier.id] || 0
+              const total = Object.values(TIER_MEMBERS).reduce((a: number, b: number) => a + b, 0)
+              return (
+                <div key={tier.id} className="ov-tier-row">
+                  <div className="ov-tier-dot" style={{ background: tier.bg, border: `2px solid ${tier.color}` }} />
+                  <span className="ov-tier-name">{tier.name}</span>
+                  <div className="ov-tier-bar-wrap">
+                    <div className="ov-tier-bar" style={{ width: `${(count / total) * 100}%`, background: tier.bg, border: `1px solid ${tier.color}40` }} />
+                  </div>
+                  <span className="ov-tier-count">{count}</span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Activity feed */}
+        <div className="db-card">
+          <div className="ov-card-title-row">
+            <span className="ov-card-title">{t('recent_activity' as any)}</span>
+            <span className="ov-live"><span className="ov-live-dot" />{t('live' as any)}</span>
+          </div>
+          {mockData.recentActivity.map((a: any) => (
+            <div key={a.id} className="ov-activity-row">
+              <div className={`ov-av ov-av--${a.type}`}>{initials(a.user)}</div>
+              <div className="ov-activity-text"><strong>{a.user}</strong> {a.action}{a.reward ? ` · ${a.reward}` : ''}</div>
+              <div className="ov-activity-time">{a.time}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Insights */}
+        <div className="db-card">
+          <div className="ov-card-title">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#C75D3A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6, verticalAlign: 'middle' }}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            {t('smart_insights' as any)}
+          </div>
+          {mockData.insights.map((ins: any) => (
+            <div key={ins.id} className={`ov-insight ov-insight--${ins.type}`}>{ins.text}</div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Coming soon ──────────────────────────────────────────────────────────────
+function ComingSoon({ label }: { label: string }) {
+  return (
+    <div className="db-coming-soon">
+      <div className="db-coming-soon-mark" />
+      <div className="db-coming-soon-label">{label}</div>
+    </div>
+  )
+}
+
+// ─── CSS ──────────────────────────────────────────────────────────────────────
+const CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap');
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Inter',sans-serif;background:#FBF6EE;color:#2B2620;}
+
+  /* ── Shell ── */
+  .db-shell{display:flex;height:100vh;overflow:hidden;}
+  .db-main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+
+  /* ── Sidebar ── */
+  .db-sb{width:230px;flex-shrink:0;background:#1E3329;display:flex;flex-direction:column;padding:18px 12px;transition:width .25s ease;}
+  .db-sb--collapsed{width:68px;}
+  .sb-overlay{display:none;}
+  .sb-logo{display:flex;align-items:center;gap:10px;padding:4px 8px 24px;}
+  .sb-logo-mark{width:36px;height:36px;border-radius:10px;background:#C75D3A;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .sb-wordmark{font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:20px;color:#F7F0E4;letter-spacing:-.01em;white-space:nowrap;}
+  .sb-nav{display:flex;flex-direction:column;gap:2px;flex:1;}
+  .sb-item{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:10px;border:none;cursor:pointer;background:transparent;color:rgba(247,240,228,.5);font-family:'Inter',sans-serif;font-size:15px;font-weight:500;width:100%;text-align:left;transition:all .15s;position:relative;white-space:nowrap;}
+  .db-sb--collapsed .sb-item{justify-content:center;padding:11px;}
+  .sb-item:hover{background:rgba(255,255,255,.07);color:rgba(247,240,228,.85);}
+  .sb-item--on{background:rgba(199,93,58,.22);color:#E8794F;font-weight:600;}
+  .sb-item-label{font-size:15px;}
+  .sb-active-dot{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:6px;height:6px;border-radius:50%;background:#C75D3A;}
+  .sb-footer{display:flex;align-items:center;gap:8px;padding-top:12px;border-top:1px solid rgba(255,255,255,.08);margin-top:8px;}
+  .sb-user{display:flex;align-items:center;gap:9px;flex:1;min-width:0;}
+  .sb-user-av{width:32px;height:32px;border-radius:50%;background:#C75D3A;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;font-weight:700;flex-shrink:0;}
+  .sb-user-name{font-size:13px;color:#F7F0E4;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .sb-user-role{font-size:10.5px;color:rgba(247,240,228,.4);}
+  .sb-collapse-btn{background:none;border:none;cursor:pointer;color:rgba(247,240,228,.4);padding:6px;border-radius:8px;display:flex;align-items:center;flex-shrink:0;transition:all .15s;}
+  .sb-collapse-btn:hover{background:rgba(255,255,255,.08);color:rgba(247,240,228,.8);}
+
+  /* ── Header ── */
+  .db-header{height:62px;flex-shrink:0;background:#FFFFFF;border-bottom:1px solid rgba(43,38,32,.08);display:flex;align-items:center;padding:0 24px;gap:14px;}
+  .hd-hamburger{display:none;background:none;border:none;cursor:pointer;color:rgba(43,38,32,.6);padding:6px;border-radius:8px;}
+  .hd-title{font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:20px;color:#2B2620;flex:1;}
+  .hd-right{display:flex;align-items:center;gap:10px;}
+  .hd-search-wrap{position:relative;}
+  .hd-search{display:flex;align-items:center;gap:8px;background:#FBF6EE;border:1px solid rgba(43,38,32,.1);border-radius:10px;padding:8px 13px;width:220px;}
+  .hd-search input{background:none;border:none;outline:none;font-family:'Inter',sans-serif;font-size:13px;color:#2B2620;width:100%;}
+  .hd-search input::placeholder{color:rgba(43,38,32,.38);}
+  .hd-icon-wrap{position:relative;}
+  .hd-icon-btn{width:38px;height:38px;border-radius:10px;background:#FBF6EE;border:1px solid rgba(43,38,32,.1);display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(43,38,32,.55);position:relative;transition:all .15s;}
+  .hd-icon-btn:hover{background:#F0EBE3;}
+  .hd-notif-dot{position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:50%;background:#C75D3A;border:1.5px solid #fff;}
+  .hd-avatar-btn{width:38px;height:38px;border-radius:50%;background:#C75D3A;border:none;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;font-weight:700;cursor:pointer;}
+
+  /* ── Dropdowns ── */
+  .hd-dropdown{position:absolute;top:calc(100% + 8px);right:0;background:#FFFFFF;border:1px solid rgba(43,38,32,.1);border-radius:14px;box-shadow:0 8px 32px rgba(43,38,32,.12);z-index:50;min-width:280px;}
+  .hd-search-dropdown{left:0;right:auto;}
+  .hd-drop-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid rgba(43,38,32,.07);}
+  .hd-drop-title{font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:14px;color:#2B2620;}
+  .hd-mark-read{font-size:11px;color:#C75D3A;font-weight:600;background:none;border:none;cursor:pointer;}
+  .hd-empty{padding:20px;text-align:center;font-size:12px;color:rgba(43,38,32,.4);}
+  .hd-search-row{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;transition:background .1s;}
+  .hd-search-row:hover{background:#FBF6EE;}
+  .hd-srch-av{width:28px;height:28px;border-radius:50%;background:#C75D3A;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:700;flex-shrink:0;}
+  .hd-srch-name{font-size:12.5px;font-weight:600;color:#2B2620;}
+  .hd-srch-email{font-size:10.5px;color:rgba(43,38,32,.45);}
+  .hd-srch-prog{font-size:11px;font-weight:700;color:#C75D3A;margin-left:auto;}
+  .hd-notif-dropdown{width:320px;}
+  .hd-notif-row{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid rgba(43,38,32,.06);}
+  .hd-notif-row:last-child{border-bottom:none;}
+  .hd-notif-av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;}
+  .hd-notif-av--redeem{background:rgba(199,93,58,.15);color:#C75D3A;}
+  .hd-notif-av--signup{background:rgba(91,140,90,.15);color:#5B8C5A;}
+  .hd-notif-av--login{background:rgba(24,95,165,.12);color:#185FA5;}
+  .hd-notif-info{flex:1;}
+  .hd-notif-text{font-size:12px;color:rgba(43,38,32,.75);line-height:1.4;}
+  .hd-notif-text strong{color:#2B2620;font-weight:600;}
+  .hd-notif-time{font-size:10.5px;color:rgba(43,38,32,.4);margin-top:2px;}
+  .hd-user-dropdown{width:240px;}
+  .hd-user-head{display:flex;align-items:center;gap:10px;padding:14px 16px;}
+  .hd-user-av-lg{width:36px;height:36px;border-radius:50%;background:#C75D3A;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;font-weight:700;flex-shrink:0;}
+  .hd-user-name{font-size:13px;font-weight:700;color:#2B2620;}
+  .hd-user-email{font-size:11px;color:rgba(43,38,32,.45);}
+  .hd-drop-divider{height:1px;background:rgba(43,38,32,.07);margin:4px 0;}
+  .hd-user-item{display:flex;align-items:center;gap:10px;width:100%;padding:10px 16px;background:none;border:none;cursor:pointer;font-size:13px;color:rgba(43,38,32,.7);font-family:'Inter',sans-serif;transition:background .1s;text-align:left;}
+  .hd-user-item:hover{background:#FBF6EE;color:#2B2620;}
+  .hd-user-item--danger{color:#B23B3B;}
+  .hd-user-item--danger:hover{background:rgba(178,59,59,.06);}
+
+  /* ── Content area ── */
+  .db-content{flex:1;overflow-y:auto;padding:22px 24px;display:flex;flex-direction:column;gap:16px;}
+  .db-card{background:#FFFFFF;border:1px solid rgba(43,38,32,.07);border-radius:14px;padding:16px;box-shadow:0 1px 8px rgba(43,38,32,.04);}
+
+  /* ── Overview ── */
+  .ov-section-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:rgba(43,38,32,.38);font-weight:600;display:flex;align-items:center;gap:10px;}
+  .ov-section-label::after{content:'';flex:1;height:1px;background:rgba(43,38,32,.1);}
+  .ov-metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+  .ov-metric-card{background:#FFFFFF;border:1px solid rgba(43,38,32,.07);border-radius:14px;padding:16px;box-shadow:0 1px 8px rgba(43,38,32,.04);}
+  .ov-metric-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .ov-metric-dot{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;}
+  .ov-delta{font-size:11.5px;font-weight:600;}
+  .ov-delta--up{color:#5B8C5A;}.ov-delta--down{color:#B23B3B;}
+  .ov-metric-value{font-family:'Plus Jakarta Sans',sans-serif;font-size:28px;font-weight:800;color:#2B2620;line-height:1;margin-bottom:4px;}
+  .ov-metric-label{font-size:12px;color:rgba(43,38,32,.5);}
+  .ov-two-col{display:grid;grid-template-columns:1.8fr 1fr;gap:12px;}
+  .ov-card-title{font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:13.5px;color:#2B2620;margin-bottom:2px;}
+  .ov-card-sub{font-size:11px;color:rgba(43,38,32,.45);margin-bottom:12px;}
+  .ov-card-title-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .ov-bars{display:flex;align-items:flex-end;gap:8px;height:90px;margin-top:8px;}
+  .ov-bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end;}
+  .ov-bar-fill{width:100%;background:#C75D3A;border-radius:4px 4px 0 0;min-height:4px;}
+  .ov-bar-label{font-size:10px;color:rgba(43,38,32,.45);}
+  .ov-near-card{display:flex;flex-direction:column;justify-content:center;text-align:center;}
+  .ov-near-num{font-family:'Plus Jakarta Sans',sans-serif;font-size:48px;font-weight:800;color:#C75D3A;line-height:1;margin:8px 0 4px;}
+  .ov-near-label{font-size:12px;color:rgba(43,38,32,.45);}
+  .ov-adv-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+  .ov-adv-card{background:#FFFFFF;border:1px solid rgba(43,38,32,.07);border-radius:14px;padding:16px;box-shadow:0 1px 8px rgba(43,38,32,.04);}
+  .ov-adv-val{font-family:'Plus Jakarta Sans',sans-serif;font-size:24px;font-weight:800;margin-bottom:4px;}
+  .ov-adv-label{font-size:12px;color:rgba(43,38,32,.5);}
+  .ov-three-col{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+  .ov-reward-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .ov-reward-row:last-child{margin-bottom:0;}
+  .ov-reward-rank{width:22px;height:22px;border-radius:6px;background:rgba(43,38,32,.06);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:rgba(43,38,32,.4);flex-shrink:0;}
+  .ov-reward-rank--first{background:rgba(199,93,58,.12);color:#C75D3A;}
+  .ov-reward-info{flex:1;}
+  .ov-reward-name{font-size:12px;color:#2B2620;margin-bottom:4px;}
+  .ov-reward-bar{height:5px;background:rgba(43,38,32,.07);border-radius:3px;overflow:hidden;}
+  .ov-reward-fill{height:100%;background:linear-gradient(90deg,#C75D3A,#D4A24C);border-radius:3px;}
+  .ov-reward-count{font-size:11px;font-weight:600;color:rgba(43,38,32,.5);flex-shrink:0;}
+  .ov-tier-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(43,38,32,.05);}
+  .ov-tier-row:last-child{border-bottom:none;}
+  .ov-tier-dot{width:14px;height:14px;border-radius:50%;flex-shrink:0;}
+  .ov-tier-name{font-size:12px;color:#2B2620;width:52px;flex-shrink:0;}
+  .ov-tier-bar-wrap{flex:1;height:8px;background:rgba(43,38,32,.06);border-radius:4px;overflow:hidden;}
+  .ov-tier-bar{height:100%;border-radius:4px;}
+  .ov-tier-count{font-size:11px;font-weight:700;color:#2B2620;width:28px;text-align:right;}
+  .ov-activity-row{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid rgba(43,38,32,.06);}
+  .ov-activity-row:last-child{border-bottom:none;}
+  .ov-av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;}
+  .ov-av--redeem{background:rgba(199,93,58,.15);color:#C75D3A;}
+  .ov-av--signup{background:rgba(91,140,90,.15);color:#5B8C5A;}
+  .ov-av--login{background:rgba(24,95,165,.12);color:#185FA5;}
+  .ov-activity-text{flex:1;font-size:12px;color:rgba(43,38,32,.65);}
+  .ov-activity-text strong{color:#2B2620;font-weight:600;}
+  .ov-activity-time{font-size:10px;color:rgba(43,38,32,.35);flex-shrink:0;}
+  .ov-live{display:flex;align-items:center;gap:5px;font-size:11px;color:#5B8C5A;}
+  .ov-live-dot{width:7px;height:7px;border-radius:50%;background:#5B8C5A;animation:pulse 1.5s infinite;}
+  .ov-insight{font-size:12px;color:rgba(43,38,32,.7);line-height:1.5;padding:10px 12px;border-radius:9px;background:rgba(43,38,32,.03);margin-bottom:8px;}
+  .ov-insight:last-child{margin-bottom:0;}
+  .ov-insight--positive{border-left:2.5px solid #5B8C5A;}
+  .ov-insight--warning{border-left:2.5px solid #C75D3A;}
+  .ov-insight--info{border-left:2.5px solid #185FA5;}
+
+  /* ── Coming soon ── */
+  .db-coming-soon{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;}
+  .db-coming-soon-mark{width:36px;height:36px;border-radius:10px;background:#C75D3A;opacity:.15;}
+  .db-coming-soon-label{font-size:14px;color:rgba(43,38,32,.38);}
+
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 768px) {
+    .db-sb{position:fixed;left:-100%;top:0;bottom:0;z-index:50;width:260px !important;transition:left .25s ease;box-shadow:4px 0 24px rgba(43,38,32,.2);}
+    .db-sb--mobile-open{left:0 !important;}
+    .db-sb--collapsed{left:-100% !important;}
+    .sb-overlay{display:block;position:fixed;inset:0;background:rgba(43,38,32,.4);z-index:49;backdrop-filter:blur(2px);}
+    .hd-hamburger{display:flex;}
+    .hd-search{width:160px;}
+    .ov-metric-grid{grid-template-columns:repeat(2,1fr);}
+    .ov-adv-grid{grid-template-columns:repeat(2,1fr);}
+    .ov-three-col{grid-template-columns:1fr;}
+    .ov-two-col{grid-template-columns:1fr;}
+    .db-content{padding:16px;}
+    .db-header{padding:0 16px;}
+  }
+  @media (max-width: 480px) {
+    .ov-metric-grid{grid-template-columns:1fr 1fr;}
+    .hd-search{display:none;}
+    .hd-title{font-size:17px;}
+  }
+`
+
+function injectStyles() {
+  if (typeof document === 'undefined') return
+  if (document.getElementById('db-css')) return
+  const s = document.createElement('style')
+  s.id = 'db-css'
+  s.textContent = CSS
   document.head.appendChild(s)
 }
 
-// ─── MAIN PAGE ────────────────────────────────────────────────────────────────
+// ─── Main page ────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
-  const [col, setCol] = useState(false)
-  const [act, setAct] = useState('overview')
-  const titles: Record<string, string> = {
-    overview: 'Overview', users: 'Usuarios', analytics: 'Analytics',
-    rewards: 'Recompensas', settings: 'Ajustes',
+  const [active, setActive]         = useState<TabId>(() => {
+    if (typeof window === 'undefined') return 'overview'
+    return (localStorage.getItem('stampa_active_tab') as TabId) || 'overview'
+  })
+  const [collapsed, setCollapsed]   = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [t, setT]                   = useState(() => createT('es'))
+  const [owner, setOwner]           = useState<any>(null)
+  const [business, setBusiness]     = useState<any>(null)
+  const [businessId, setBusinessIdState] = useState<string | null>(null)
+  const [loading, setLoading]       = useState(true)
+
+  async function loadBusiness() {
+    try {
+      const { owner: o, businesses } = await apiMe()
+      setOwner(o)
+      if (businesses.length > 0) {
+        const bid = businesses[0]._id
+        setBusinessId(bid)
+        setBusinessIdState(bid)
+        setBusiness(businesses[0])
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  useEffect(() => { injectStyles() }, [])
+  useEffect(() => {
+    injectStyles()
+    setT(() => createT(detectLang()))
+    loadBusiness()
+  }, [])
+
+  const TITLES: Record<TabId, string> = {
+    overview:'nav_overview', customers:'nav_customers', analytics:'nav_analytics',
+    rewards:'nav_rewards', notifications:'nav_notifications', design:'nav_design',
+    form:'nav_form', users:'nav_users', settings:'nav_settings',
+  } as any
+
+  function renderTab() {
+    switch (active) {
+      case 'overview':      return <OverviewTab t={t} />
+      case 'customers':     return <CustomersTab customers={mockData.customers} dynamicFieldLabel="Bebida favorita" />
+      case 'analytics':     return <AnalyticsTab data={mockData} />
+      case 'rewards':       return <RewardsTab data={mockData} />
+      case 'notifications': return <NotificationsTab data={mockData} />
+      case 'form':          return <FormTab businessName={business?.name || mockData.business.name} businessSlug={business?.slug || 'mi-negocio'} cardDesigns={mockData.cardDesigns} />
+      case 'design':        return businessId
+        ? <DesignTab key={businessId} data={mockData} businessId={businessId} />
+        : <DesignTab data={mockData} />
+      case 'users':         return <UsersTab users={mockData.staffUsers} />
+      case 'settings':      return (
+        <SettingsTab
+          key={businessId ?? 'loading'}
+          businessId={businessId ?? undefined}
+          onSave={loadBusiness}
+          business={business ? {
+            ...mockData.business,
+            name: business.name,
+            sector: business.sector,
+            inactiveDays: business.inactiveDays || mockData.business.inactiveDays,
+            alerts: business.alerts || mockData.business.alerts,
+            plan: owner?.plan || mockData.business.plan,
+          } : mockData.business}
+        />
+      )
+      default: return <ComingSoon label={t(TITLES[active])} />
+    }
+  }
+
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#FBF6EE' }}>
+      <div style={{ fontSize: 14, color: 'rgba(43,38,32,.4)' }}>Cargando...</div>
+    </div>
+  )
 
   return (
-    <div className="bg dw">
-      <Sidebar col={col} setCol={setCol} act={act} setAct={setAct} />
-      <div className="dm">
-        <Header title={titles[act]} />
-        {act === 'overview' ? <Overview /> : (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
-            <StampaLogo height={48} opacity={0.2} />
-            <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 14, color: 'var(--t3)' }}>
-              {titles[act]} — Próximamente
-            </div>
-          </div>
-        )}
+    <PlanProvider plan={(owner?.plan || mockData.business.plan) as any}>
+    <LangContext.Provider value={t}>
+    <div className="db-shell">
+      <Sidebar
+        active={active}
+        setActive={tab => { setActive(tab); localStorage.setItem('stampa_active_tab', tab) }}
+        collapsed={collapsed}
+        setCollapsed={setCollapsed}
+        t={t}
+        mobileOpen={mobileOpen}
+        setMobileOpen={setMobileOpen}
+      />
+      <div className="db-main">
+        <Header title={t(TITLES[active] as any)} t={t} setMobileOpen={setMobileOpen} />
+        {renderTab()}
       </div>
     </div>
+    </LangContext.Provider>
+    </PlanProvider>
   )
 }
