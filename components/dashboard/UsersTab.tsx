@@ -1,6 +1,7 @@
 'use client'
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useLang } from '@/data/i18n'
+import { apiCreateTeamMember, apiUpdateTeamMember, apiDeleteTeamMember, getBusinessId } from '@/lib/api'
 import { usePlan } from '@/data/plans'
 
 type Role   = 'owner' | 'manager' | 'scanner'
@@ -11,7 +12,7 @@ interface StaffUser { id: string; name: string; email: string; role: Role; acces
 function initials(name: string) { return name.split(' ').map((w: string) => w[0]).join('').slice(0,2).toUpperCase() }
 const AVATAR_COLORS: Record<Role, string> = { owner: '#C75D3A', manager: '#185FA5', scanner: '#9C7530' }
 
-function InviteModal({ onClose, onAdd }: { onClose: () => void; onAdd: (u: StaffUser) => void }) {
+function InviteModal({ onClose, onAdd, onRefresh }: { onClose: () => void; onAdd: (u: StaffUser) => void; onRefresh?: () => void }) {
   const t = useLang()
   const [role, setRole] = useState<'manager' | 'scanner'>('manager')
   const [name, setName] = useState('')
@@ -73,26 +74,38 @@ function InviteModal({ onClose, onAdd }: { onClose: () => void; onAdd: (u: Staff
   )
 }
 
-export function UsersTab({ users: initUsers }: { users: StaffUser[] }) {
+export function UsersTab({ users: initUsers, businessId, onRefresh }: { users: StaffUser[]; businessId?: string | null; onRefresh?: () => void }) {
   const t = useLang()
   const { limit } = usePlan()
-  const teamLimit  = limit('maxTeamMembers')
-  const [users, setUsers]         = useState<StaffUser[]>(initUsers)
+  const teamLimit   = limit('maxTeamMembers')
+  const [users, setUsers]                 = useState<StaffUser[]>(initUsers)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
-  const [roleFilter, setFilter] = useState<'all' | Role>('all')
-  const [showInvite, setInvite] = useState(false)
+  const [roleFilter, setFilter]           = useState<'all' | Role>('all')
+  const [showInvite, setInvite]           = useState(false)
 
-  const nonOwners  = users.filter((u: StaffUser) => u.role !== 'owner').length
-  const atLimit    = teamLimit < 999 && nonOwners >= teamLimit
+  const nonOwners = users.filter((u: StaffUser) => u.role !== 'owner').length
+  const atLimit   = teamLimit < 999 && nonOwners >= teamLimit
 
-  function deleteUser(id: string) {
+  // Data comes from dashboard-page.tsx via props — no internal fetching needed
+
+  async function deleteUser(id: string) {
+    if (businessId) {
+      try { await apiDeleteTeamMember(businessId, id) } catch (err) { console.error(err) }
+    }
     setUsers(users.filter((u: StaffUser) => u.id !== id))
     setConfirmDelete(null)
+    onRefresh?.()
   }
 
-  function toggleDisable(id: string) {
+  async function toggleDisable(id: string) {
+    const user = users.find((u: StaffUser) => u.id === id)
+    if (!user) return
+    const newStatus = user.status === 'disabled' ? 'active' : 'disabled'
+    if (businessId) {
+      try { await apiUpdateTeamMember(businessId, id, { status: newStatus as any }) } catch (err) { console.error(err) }
+    }
     setUsers(users.map((u: StaffUser) => u.id === id
-      ? { ...u, status: u.status === 'disabled' ? 'active' as Status : 'disabled' as Status }
+      ? { ...u, status: newStatus as Status }
       : u
     ))
   }
@@ -275,7 +288,7 @@ export function UsersTab({ users: initUsers }: { users: StaffUser[] }) {
         </div>
       </div>
 
-      {showInvite && <InviteModal onClose={() => setInvite(false)} onAdd={u => setUsers([...users, u])} />}
+      {showInvite && <InviteModal onClose={() => setInvite(false)} onAdd={u => setUsers([...users, u])} onRefresh={onRefresh} />}
 
       {confirmDelete && (() => {
         const user = users.find((u: StaffUser) => u.id === confirmDelete)

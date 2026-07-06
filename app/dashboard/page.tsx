@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { mockData } from '@/data/mockData'
 import { detectLang, createT, LangContext } from '@/data/i18n'
 import { PlanProvider } from '@/data/plans'
-import { apiMe, getBusinessId, setBusinessId } from '@/lib/api'
+import { apiMe, apiGetTeam, getBusinessId, setBusinessId } from '@/lib/api'
 import { SettingsTab }       from '@/components/dashboard/SettingsTab'
 import { CustomersTab }      from '@/components/dashboard/CustomersTab'
 import { AnalyticsTab }      from '@/components/dashboard/AnalyticsTab'
@@ -592,6 +592,7 @@ export default function DashboardPage() {
   const [owner, setOwner]           = useState<any>(null)
   const [business, setBusiness]     = useState<any>(null)
   const [businessId, setBusinessIdState] = useState<string | null>(null)
+  const [team, setTeam]             = useState<any[]>([])
   const [loading, setLoading]       = useState(true)
 
   async function loadBusiness() {
@@ -603,6 +604,19 @@ export default function DashboardPage() {
         setBusinessId(bid)
         setBusinessIdState(bid)
         setBusiness(businesses[0])
+        // Load team
+        try {
+          const teamData = await apiGetTeam(bid)
+          setTeam((teamData as any[]).map(u => ({
+            id:           u._id,
+            name:         u.fullName,
+            email:        u.email || '',
+            role:         u.role,
+            access:       u.role === 'manager' ? 'Dashboard' : 'Scanner app',
+            status:       u.status,
+            lastActivity: u.lastActivityAt ? new Date(u.lastActivityAt).toLocaleDateString('es-AR') : '—',
+          })))
+        } catch (e) { console.error('team load error:', e) }
       }
     } catch (err) {
       console.error(err)
@@ -634,7 +648,7 @@ export default function DashboardPage() {
       case 'design':        return businessId
         ? <DesignTab key={businessId} data={mockData} businessId={businessId} />
         : <DesignTab data={mockData} />
-      case 'users':         return <UsersTab users={mockData.staffUsers} />
+      case 'users':         return <UsersTab key={businessId ?? 'loading'} users={team} businessId={businessId} onRefresh={loadBusiness} />
       case 'settings':      return (
         <SettingsTab
           key={businessId ?? 'loading'}
