@@ -594,6 +594,8 @@ export default function DashboardPage() {
   const [businessId, setBusinessIdState] = useState<string | null>(null)
   const [team, setTeam]             = useState<any[]>([])
   const [cards, setCards]           = useState<any[]>([])
+  const [notifHistory, setNotifHistory]             = useState<any[]>([])
+  const [notifSentThisMonth, setNotifSentThisMonth] = useState(0)
   const [loading, setLoading]       = useState(true)
 
   async function loadBusiness() {
@@ -634,6 +636,19 @@ export default function DashboardPage() {
             rewardField:    c.rewardFixedValue || null,
           })))
         } catch (e) { console.error('cards load error:', e) }
+
+        // Load notification history
+        try {
+          const notifRes = await fetch(`http://localhost:5002/api/businesses/${bid}/notifications`, {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + localStorage.getItem('stampa_token')
+            }
+          })
+          const notifData = await notifRes.json()
+          setNotifHistory(notifData.history || [])
+          setNotifSentThisMonth(notifData.sentThisMonth || 0)
+        } catch (e) { console.error('notif load error:', e) }
       }
     } catch (err) {
       console.error(err)
@@ -660,7 +675,20 @@ export default function DashboardPage() {
       case 'customers':     return <CustomersTab customers={mockData.customers} dynamicFieldLabel="Bebida favorita" />
       case 'analytics':     return <AnalyticsTab data={mockData} />
       case 'rewards':       return <RewardsTab data={mockData} />
-      case 'notifications': return <NotificationsTab data={mockData} businessId={businessId} />
+      case 'notifications': return <NotificationsTab
+        businessId={businessId}
+        data={{
+          ...mockData,
+          sentNotifications: notifHistory.map((n: any) => ({
+            id: n._id || n.sentAt,
+            message: n.message,
+            audience: n.audience,
+            sentCount: n.sentCount,
+            sentAt: new Date(n.sentAt).toLocaleDateString('es-AR'),
+          })),
+          scheduledNotifications: [],
+        }}
+      />
       case 'form':          return <FormTab businessName={business?.name || mockData.business.name} businessSlug={business?.slug || 'mi-negocio'} cardDesigns={cards.length > 0 ? cards : mockData.cardDesigns} />
       case 'design':        return businessId
         ? <DesignTab key={businessId} data={mockData} businessId={businessId} />
