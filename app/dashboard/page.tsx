@@ -689,8 +689,14 @@ export default function DashboardPage() {
           scheduledNotifications: [],
         }}
       />
-      case 'form':          return <FormTab businessName={business?.name || mockData.business.name} businessSlug={business?.slug || 'mi-negocio'} cardDesigns={cards.length > 0 ? cards : mockData.cardDesigns} />
-      case 'design':        return businessId
+      case 'form': return <FormTab
+      key={cards.length > 0 ? cards[0].id : 'loading'}
+      businessName={business?.name || mockData.business.name}
+      businessSlug={business?.slug || 'mi-negocio'}
+      cardDesigns={cards.length > 0 ? cards : mockData.cardDesigns}
+      businessId={businessId}
+    />
+       case 'design':        return businessId
         ? <DesignTab key={businessId} data={mockData} businessId={businessId} />
         : <DesignTab data={mockData} />
       case 'users':         return <UsersTab key={businessId ?? 'loading'} users={team} businessId={businessId} onRefresh={loadBusiness} owner={owner} />

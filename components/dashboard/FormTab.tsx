@@ -1,5 +1,6 @@
 'use client'
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
+import { apiGetFields, apiCreateField, apiUpdateField, apiDeleteField, apiReorderFields } from '@/lib/api'
 import { usePlan } from '@/data/plans'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -30,6 +31,7 @@ interface FormTabProps {
   businessName: string
   businessSlug: string
   cardDesigns: CardDesign[]
+  businessId?: string | null
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -279,11 +281,12 @@ function ShareSection({ businessName, slug }: { businessName: string; slug: stri
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
-export function FormTab({ businessName, businessSlug, cardDesigns }: FormTabProps) {
+export function FormTab({ businessName, businessSlug, cardDesigns, businessId }: FormTabProps) {
   const { can, limit } = usePlan()
   const MAX_CUSTOM = limit('maxCustomFields') || 3
   const activeCards = cardDesigns.filter((c: CardDesign) => c.isActive)
   const [selectedCardId, setSelectedCardId] = useState<string>(activeCards[0]?.id || '')
+  const [loadingFields, setLoadingFields] = useState(false)
   const selectedCard = activeCards.find((c: CardDesign) => c.id === selectedCardId) || activeCards[0]
 
   // Per-card form state
@@ -293,6 +296,28 @@ export function FormTab({ businessName, businessSlug, cardDesigns }: FormTabProp
   const [cardCustom, setCardCustom] = useState<Record<string, FormField[]>>(
     Object.fromEntries(activeCards.map((c: CardDesign) => [c.id, []]))
   )
+  // Load real fields from backend when card or businessId changes
+  useEffect(() => {
+    if (!businessId || !selectedCardId) return
+    setLoadingFields(true)
+    apiGetFields(businessId, selectedCardId).then(fields => {
+      if (fields.length > 0) {
+        const fixed = fields.filter((f: any) => f.isLocked).map((f: any) => ({
+          id: f._id, label: f.label, type: f.fieldType, isLocked: true,
+          isActive: f.isActive, isRewardSource: f.isRewardSource, order: f.order,
+          placeholder: f.placeholder || '',
+        }))
+        const custom = fields.filter((f: any) => !f.isLocked).map((f: any) => ({
+          id: f._id, label: f.label, type: f.fieldType, isLocked: false,
+          isActive: f.isActive, isRewardSource: f.isRewardSource, order: f.order,
+          placeholder: f.placeholder || '', options: f.options,
+        }))
+        setCardForms(prev => ({ ...prev, [selectedCardId]: fixed }))
+        setCardCustom(prev => ({ ...prev, [selectedCardId]: custom }))
+      }
+    }).catch(console.error).finally(() => setLoadingFields(false))
+  }, [businessId, selectedCardId])
+
 
   // Branding state
   const [brandColor, setBrandColor] = useState(selectedCard?.color || '#1E3329')
@@ -352,7 +377,56 @@ export function FormTab({ businessName, businessSlug, cardDesigns }: FormTabProp
     reader.readAsDataURL(file)
   }
 
-  function handleSave() { setSaved(true); setTimeout(() => setSaved(false), 2000) }
+  async function handleSave() {
+    if (!businessId || !selectedCardId) {
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+      return
+    }
+    try {
+      const token = localStorage.getItem('stampa_token')
+      const allCustomFields = [...optional, ...custom]
+
+      // Update each field that has a real MongoDB _id
+      await Promise.all(allCustomFields
+        .filter((f: FormField) => !f.id.startsWith('c-') && !['name','email'].includes(f.id))
+        .map((f: FormField) =>
+          fetch(`http://localhost:5002/api/businesses/${businessId}/cards/${selectedCardId}/fields/${f.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({
+              label: f.label,
+              isActive: f.isActive,
+              isRewardSource: f.isRewardSource,
+              order: f.order,
+            })
+          })
+        )
+      )
+
+      // Create new custom fields (those with temp id starting with 'c-')
+      await Promise.all(custom
+        .filter((f: FormField) => f.id.startsWith('c-') && f.label.trim())
+        .map((f: FormField) =>
+          fetch(`http://localhost:5002/api/businesses/${businessId}/cards/${selectedCardId}/fields`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({
+              label: f.label,
+              fieldType: f.type || 'text',
+              isRewardSource: f.isRewardSource,
+              order: f.order,
+            })
+          })
+        )
+      )
+
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch (err) {
+      console.error('Error saving form fields:', err)
+    }
+  }
 
   const rewardField = allFields.find((f: FormField) => f.isRewardSource)
 
