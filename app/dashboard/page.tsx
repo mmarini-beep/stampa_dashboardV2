@@ -162,7 +162,7 @@ function Sidebar({ active, setActive, collapsed, setCollapsed, t, mobileOpen, se
 }
 
 // ─── Header ───────────────────────────────────────────────────────────────────
-function Header({ title, t, setMobileOpen }: { title: string; t: (k: any) => string; setMobileOpen: (o: boolean) => void }) {
+function Header({ title, t, setMobileOpen, setActive }: { title: string; t: (k: any) => string; setMobileOpen: (o: boolean) => void; setActive?: (t: any) => void }) {
   const [search, setSearch] = useState('')
   const [showSearch, setShowSearch] = useState(false)
   const [showNotif, setShowNotif] = useState(false)
@@ -237,7 +237,7 @@ function Header({ title, t, setMobileOpen }: { title: string; t: (k: any) => str
             <div className="hd-dropdown hd-notif-dropdown">
               <div className="hd-drop-head">
                 <span className="hd-drop-title">{t('notifications_title' as any)}</span>
-                <button className="hd-mark-read">{t('mark_all_read' as any)}</button>
+                <button className="hd-mark-read" onClick={() => { setShowNotif(false); setActive?.('notifications') }}>Ver campañas →</button>
               </div>
               {recentActivity.map((a: any) => (
                 <div key={a.id} className="hd-notif-row">
@@ -345,7 +345,9 @@ function OverviewTab({ t, analyticsData, rewardsData, cards }: {
         </div>
       </div>
 
-      {/* Advanced metrics — colored */}
+      {/* Advanced + Engagement — solo cuando hay datos reales */}
+      {analyticsData !== null && analyticsData?.total > 0 ? (
+        <>
       <div className="ov-section-label">{t('section_advanced' as any)}</div>
       <div className="ov-adv-grid">
         {ADVANCED.map(({ v, l, color, bg }) => (
@@ -425,11 +427,34 @@ function OverviewTab({ t, analyticsData, rewardsData, cards }: {
           ))}
         </div>
       </div>
+        </>
+      ) : analyticsData !== null ? (
+        <div className="db-card" style={{display:'flex',flex:1}}>
+          <EmptyState
+            icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>}
+            title="Los datos van a aparecer acá"
+            body="Cuando tus primeros clientes se registren vas a ver métricas de retención, crecimiento y engagement en tiempo real."
+          />
+        </div>
+      ) : null}
     </div>
   )
 }
 
 // ─── Coming soon ──────────────────────────────────────────────────────────────
+function EmptyState({ icon, title, body, cta, onCta }: {
+  icon: React.ReactNode; title: string; body: string; cta?: string; onCta?: () => void
+}) {
+  return (
+    <div className="db-empty">
+      <div className="db-empty-icon">{icon}</div>
+      <div className="db-empty-title">{title}</div>
+      <div className="db-empty-body">{body}</div>
+      {cta && onCta && <button className="db-empty-cta" onClick={onCta}>{cta}</button>}
+    </div>
+  )
+}
+
 function ComingSoon({ label }: { label: string }) {
   return (
     <div className="db-coming-soon">
@@ -539,6 +564,13 @@ const CSS = `
   .hd-user-item:hover{background:#FBF6EE;color:#2B2620;}
   .hd-user-item--danger{color:#B23B3B;}
   .hd-user-item--danger:hover{background:rgba(178,59,59,.06);}
+
+  .db-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;padding:48px 24px;text-align:center;gap:10px;}
+  .db-empty-icon{width:52px;height:52px;border-radius:16px;background:rgba(199,93,58,.08);display:flex;align-items:center;justify-content:center;color:#C75D3A;margin-bottom:8px;}
+  .db-empty-title{font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:16px;color:#2B2620;}
+  .db-empty-body{font-size:13px;color:rgba(43,38,32,.5);max-width:300px;line-height:1.7;}
+  .db-empty-cta{margin-top:12px;padding:11px 22px;background:#C75D3A;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;}
+  .db-empty-cta:hover{background:#B34E2F;}
 
   /* ── Content area ── */
   .db-content{flex:1;overflow-y:auto;padding:22px 24px;display:flex;flex-direction:column;gap:16px;}
@@ -772,9 +804,31 @@ export default function DashboardPage() {
   function renderTab() {
     switch (active) {
       case 'overview':      return <OverviewTab t={t} analyticsData={analyticsData} rewardsData={rewardsData} cards={cards} />
-      case 'customers':     return <CustomersTab customers={customers.length > 0 ? customers : mockData.customers} dynamicFieldLabel="Bebida favorita" />
-      case 'analytics':     return <AnalyticsTab data={mockData} analyticsData={analyticsData} />
-      case 'rewards':       return <RewardsTab data={mockData} rewardsData={rewardsData} cards={cards} businessId={businessId} />
+      case 'customers': return customers.length > 0
+        ? <CustomersTab customers={customers} dynamicFieldLabel="Bebida favorita" />
+        : <div className="db-content"><EmptyState
+            icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>}
+            title="Todavía no tenés clientes registrados"
+            body="Compartí el formulario de registro con tus clientes para que se sumen al programa."
+            cta="Ver formulario"
+            onCta={() => { setActive('form'); localStorage.setItem('stampa_active_tab', 'form') }}
+          /></div>
+      case 'analytics': return analyticsData?.total > 0
+        ? <AnalyticsTab key={cards.length > 0 ? cards[0].id : 'loading'} data={mockData} analyticsData={analyticsData} cards={cards} />
+        : <div className="db-content"><EmptyState
+            icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>}
+            title="Las métricas aparecen cuando tenés clientes"
+            body="Analytics te muestra retención, visitas y comportamiento. Empezá compartiendo tu formulario de registro."
+            cta="Ver formulario"
+            onCta={() => { setActive('form'); localStorage.setItem('stampa_active_tab', 'form') }}
+          /></div>
+      case 'rewards': return analyticsData?.total > 0
+        ? <RewardsTab data={mockData} rewardsData={rewardsData} cards={cards} businessId={businessId} />
+        : <div className="db-content"><EmptyState
+            icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/></svg>}
+            title="Los premios aparecen cuando hay canjes"
+            body="Acá vas a ver qué premios eligen tus clientes y cuántos canjearon este mes."
+          /></div>
       case 'notifications': return <NotificationsTab
         businessId={businessId}
         data={{
@@ -829,7 +883,7 @@ export default function DashboardPage() {
         business={business}
       />
       <div className="db-main">
-        <Header title={t(TITLES[active] as any)} t={t} setMobileOpen={setMobileOpen} />
+        <Header title={t(TITLES[active] as any)} t={t} setMobileOpen={setMobileOpen} setActive={setActive} />
         {loading
           ? <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
