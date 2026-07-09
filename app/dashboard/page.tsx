@@ -35,7 +35,7 @@ function NavIcon({ id }: { id: TabId }) {
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 const NAV_IDS: TabId[] = ['overview','customers','analytics','rewards','notifications','form','design','users','settings']
 
-function Sidebar({ active, setActive, collapsed, setCollapsed, t, mobileOpen, setMobileOpen }: {
+function Sidebar({ active, setActive, collapsed, setCollapsed, t, mobileOpen, setMobileOpen, owner, business }: {
   active: TabId
   setActive: (t: TabId) => void
   collapsed: boolean
@@ -43,12 +43,46 @@ function Sidebar({ active, setActive, collapsed, setCollapsed, t, mobileOpen, se
   t: (k: any) => string
   mobileOpen: boolean
   setMobileOpen: (o: boolean) => void
+  owner?: any
+  business?: any
 }) {
+  const [showUserMenu, setShowUserMenu] = React.useState(false)
+  const userMenuRef = React.useRef<HTMLDivElement>(null)
+
   const NAV_KEYS: Record<TabId, string> = {
     overview:'nav_overview', customers:'nav_customers', analytics:'nav_analytics',
     rewards:'nav_rewards', notifications:'nav_notifications', form:'nav_form',
     design:'nav_design', users:'nav_users', settings:'nav_settings',
   }
+
+  const NAV_LABELS: Record<TabId, string> = {
+    overview:'Overview', customers:'Customers', analytics:'Analytics',
+    rewards:'Premios', notifications:'Campañas', form:'Form',
+    design:'Design', users:'Team', settings:'Settings',
+  }
+
+  // Close menu on outside click
+  React.useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setShowUserMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  function handleLogout() {
+    localStorage.clear()
+    window.location.href = '/login'
+  }
+
+  const businessName = business?.name || 'Mi negocio'
+  const businessInitials = businessName.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+  const ownerName = owner?.fullName || 'Usuario'
+  const ownerEmail = owner?.email || ''
+  const ownerInitials = ownerName.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+  const plan = owner?.plan || 'Starter'
 
   return (
     <>
@@ -57,12 +91,23 @@ function Sidebar({ active, setActive, collapsed, setCollapsed, t, mobileOpen, se
 
       <aside className={`db-sb${collapsed ? ' db-sb--collapsed' : ''}${mobileOpen ? ' db-sb--mobile-open' : ''}`}>
         {/* Logo */}
-        <div className="sb-logo">
+        <div className="sb-logo" onClick={() => setCollapsed(!collapsed)} style={{cursor:'pointer'}}>
           <div className="sb-logo-mark">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.4-.3-.4-.5-.8-.5-1.4 0-1.1.9-2 2-2h2.4c2.3 0 4.1-1.8 4.1-4.1C21.5 6 17.2 2 12 2z"/><circle cx="6.5" cy="11.5" r="1.5" fill="#fff"/><circle cx="9.5" cy="7.5" r="1.5" fill="#fff"/></svg>
           </div>
           {!collapsed && <span className="sb-wordmark">Stampa</span>}
         </div>
+
+        {/* Business block */}
+        {!collapsed && (
+          <div className="sb-business">
+            <div className="sb-business-av">{businessInitials}</div>
+            <div className="sb-business-info" style={{minWidth:0,flex:1,overflow:'hidden'}}>
+              <div className="sb-business-name">{businessName}</div>
+              <div className="sb-business-plan">Plan {plan}</div>
+            </div>
+          </div>
+        )}
 
         {/* Nav */}
         <nav className="sb-nav">
@@ -71,33 +116,45 @@ function Sidebar({ active, setActive, collapsed, setCollapsed, t, mobileOpen, se
               key={id}
               className={`sb-item${active === id ? ' sb-item--on' : ''}`}
               onClick={() => { setActive(id); setMobileOpen(false) }}
-              title={collapsed ? t(NAV_KEYS[id] as any) : undefined}
+              title={collapsed ? NAV_LABELS[id] : undefined}
             >
               <NavIcon id={id} />
-              {!collapsed && <span className="sb-item-label">{t(NAV_KEYS[id] as any)}</span>}
+              {!collapsed && <span className="sb-item-label">{NAV_LABELS[id]}</span>}
               {collapsed && active === id && <div className="sb-active-dot" />}
             </button>
           ))}
         </nav>
 
-        {/* Footer: user + collapse */}
+        {/* Footer: owner + collapse */}
         <div className="sb-footer">
           {!collapsed && (
-            <div className="sb-user">
-              <div className="sb-user-av">MG</div>
-              <div>
-                <div className="sb-user-name">María Gómez</div>
-                <div className="sb-user-role">{t('nav_settings' as any)}</div>
+            <div className="sb-user-wrap" ref={userMenuRef}>
+              {/* User popover */}
+              {showUserMenu && (
+                <div className="sb-user-popover">
+                  <div className="sb-popover-label">CUENTA</div>
+                  <button className="sb-popover-item" onClick={() => { setActive('settings'); setShowUserMenu(false) }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    Mi perfil
+                  </button>
+                  <div className="sb-popover-divider" />
+                  <button className="sb-popover-item sb-popover-item--danger" onClick={handleLogout}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    Cerrar sesión
+                  </button>
+                </div>
+              )}
+              <div className="sb-user" onClick={() => setShowUserMenu(!showUserMenu)}>
+                <div className="sb-user-av">{ownerInitials}</div>
+                <div style={{minWidth:0,flex:1,overflow:'hidden'}}>
+                  <div className="sb-user-name">{ownerName}</div>
+                  <div className="sb-user-role">{ownerEmail}</div>
+                </div>
+
               </div>
             </div>
           )}
-          <button className="sb-collapse-btn" onClick={() => setCollapsed(!collapsed)} title={collapsed ? 'Expandir' : 'Contraer'}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              {collapsed
-                ? <path d="M9 18l6-6-6-6"/>
-                : <path d="M15 18l-6-6 6-6"/>}
-            </svg>
-          </button>
+
         </div>
       </aside>
     </>
@@ -109,10 +166,8 @@ function Header({ title, t, setMobileOpen }: { title: string; t: (k: any) => str
   const [search, setSearch] = useState('')
   const [showSearch, setShowSearch] = useState(false)
   const [showNotif, setShowNotif] = useState(false)
-  const [showUser, setShowUser] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
   const notifRef  = useRef<HTMLDivElement>(null)
-  const userRef   = useRef<HTMLDivElement>(null)
 
   const customers = mockData.customers.filter(c =>
     search.length > 1 && (
@@ -125,7 +180,6 @@ function Header({ title, t, setMobileOpen }: { title: string; t: (k: any) => str
     function handler(e: MouseEvent) {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowSearch(false)
       if (notifRef.current  && !notifRef.current.contains(e.target as Node))  setShowNotif(false)
-      if (userRef.current   && !userRef.current.contains(e.target as Node))   setShowUser(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -175,7 +229,7 @@ function Header({ title, t, setMobileOpen }: { title: string; t: (k: any) => str
 
         {/* Notifications */}
         <div className="hd-icon-wrap" ref={notifRef}>
-          <button className="hd-icon-btn" onClick={() => { setShowNotif(!showNotif); setShowUser(false) }}>
+          <button className="hd-icon-btn" onClick={() => { setShowNotif(!showNotif) }}>
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
             <span className="hd-notif-dot" />
           </button>
@@ -200,37 +254,7 @@ function Header({ title, t, setMobileOpen }: { title: string; t: (k: any) => str
           )}
         </div>
 
-        {/* User menu */}
-        <div className="hd-icon-wrap" ref={userRef}>
-          <button className="hd-avatar-btn" onClick={() => { setShowUser(!showUser); setShowNotif(false) }}>
-            MG
-          </button>
-          {showUser && (
-            <div className="hd-dropdown hd-user-dropdown">
-              <div className="hd-user-head">
-                <div className="hd-user-av-lg">MG</div>
-                <div>
-                  <div className="hd-user-name">María Gómez</div>
-                  <div className="hd-user-email">maria@stampa.com</div>
-                </div>
-              </div>
-              <div className="hd-drop-divider" />
-              {[
-                { label: t('my_profile' as any), icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> },
-                { label: t('go_to_settings' as any), icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06-.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> },
-              ].map(({ label, icon }) => (
-                <button key={label} className="hd-user-item" onClick={() => setShowUser(false)}>
-                  {icon} {label}
-                </button>
-              ))}
-              <div className="hd-drop-divider" />
-              <button className="hd-user-item hd-user-item--danger" onClick={() => setShowUser(false)}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-                {t('logout' as any)}
-              </button>
-            </div>
-          )}
-        </div>
+
       </div>
     </header>
   )
@@ -439,13 +463,32 @@ const CSS = `
   .sb-item--on{background:rgba(199,93,58,.22);color:#E8794F;font-weight:600;}
   .sb-item-label{font-size:15px;}
   .sb-active-dot{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:6px;height:6px;border-radius:50%;background:#C75D3A;}
-  .sb-footer{display:flex;align-items:center;gap:8px;padding-top:12px;border-top:1px solid rgba(255,255,255,.08);margin-top:8px;}
+  .sb-footer{padding-top:12px;border-top:1px solid rgba(255,255,255,.08);margin-top:8px;}
   .sb-user{display:flex;align-items:center;gap:9px;flex:1;min-width:0;}
   .sb-user-av{width:32px;height:32px;border-radius:50%;background:#C75D3A;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;font-weight:700;flex-shrink:0;}
-  .sb-user-name{font-size:13px;color:#F7F0E4;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .sb-user-name{font-size:12px;color:#F7F0E4;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .sb-user-role{font-size:10.5px;color:rgba(247,240,228,.4);}
   .sb-collapse-btn{background:none;border:none;cursor:pointer;color:rgba(247,240,228,.4);padding:6px;border-radius:8px;display:flex;align-items:center;flex-shrink:0;transition:all .15s;}
   .sb-collapse-btn:hover{background:rgba(255,255,255,.08);color:rgba(247,240,228,.8);}
+  .sb-business{display:flex;align-items:center;gap:9px;padding:8px 10px;margin-bottom:8px;background:rgba(255,255,255,.06);border-radius:10px;}
+  .sb-business-av{width:32px;height:32px;border-radius:8px;background:#C75D3A;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;font-weight:700;flex-shrink:0;}
+  .sb-business-info{min-width:0;}
+  .sb-business-name{font-size:13px;color:#F7F0E4;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .sb-business-plan{font-size:10px;color:rgba(247,240,228,.4);}
+  .sb-user-wrap{position:relative;width:100%;}
+  .sb-user{display:flex;align-items:center;gap:9px;cursor:pointer;padding:6px 8px;border-radius:9px;transition:background .15s;width:100%;}
+  .sb-user:hover{background:rgba(199,93,58,.2);}
+  .sb-user-av{width:32px;height:32px;border-radius:50%;background:#C75D3A;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;font-weight:700;flex-shrink:0;}
+  .sb-user-name{font-size:12px;color:#F7F0E4;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .sb-user-role{font-size:10.5px;color:rgba(247,240,228,.4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+  .sb-user-popover{position:absolute;bottom:calc(100% + 8px);left:0;right:0;background:#2A4438;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,.3);z-index:100;}
+  .sb-popover-label{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:rgba(247,240,228,.3);padding:4px 8px 6px;font-weight:700;}
+  .sb-popover-item{display:flex;align-items:center;gap:8px;width:100%;padding:9px 10px;border:none;background:none;cursor:pointer;color:rgba(247,240,228,.8);font-size:13px;font-family:'Inter',sans-serif;border-radius:8px;text-align:left;transition:background .1s;}
+  .sb-popover-item:hover{background:rgba(255,255,255,.08);}
+  .sb-popover-item--danger{color:#E57373;}
+  .sb-popover-item--danger:hover{background:rgba(178,59,59,.15);}
+  .sb-popover-divider{height:1px;background:rgba(255,255,255,.08);margin:4px 0;}
 
   /* ── Header ── */
   .db-header{height:62px;flex-shrink:0;background:#FFFFFF;border-bottom:1px solid rgba(43,38,32,.08);display:flex;align-items:center;padding:0 24px;gap:14px;}
@@ -460,7 +503,7 @@ const CSS = `
   .hd-icon-btn{width:38px;height:38px;border-radius:10px;background:#FBF6EE;border:1px solid rgba(43,38,32,.1);display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(43,38,32,.55);position:relative;transition:all .15s;}
   .hd-icon-btn:hover{background:#F0EBE3;}
   .hd-notif-dot{position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:50%;background:#C75D3A;border:1.5px solid #fff;}
-  .hd-avatar-btn{width:38px;height:38px;border-radius:50%;background:#C75D3A;border:none;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;font-weight:700;cursor:pointer;}
+
 
   /* ── Dropdowns ── */
   .hd-dropdown{position:absolute;top:calc(100% + 8px);right:0;background:#FFFFFF;border:1px solid rgba(43,38,32,.1);border-radius:14px;box-shadow:0 8px 32px rgba(43,38,32,.12);z-index:50;min-width:280px;}
@@ -782,6 +825,8 @@ export default function DashboardPage() {
         t={t}
         mobileOpen={mobileOpen}
         setMobileOpen={setMobileOpen}
+        owner={owner}
+        business={business}
       />
       <div className="db-main">
         <Header title={t(TITLES[active] as any)} t={t} setMobileOpen={setMobileOpen} />
