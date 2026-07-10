@@ -56,6 +56,41 @@ const SECTORS = [
   { id: 'other',     label: 'Otro rubro',              icon: <IcoStore /> },
 ]
 
+
+// ─── Step info (left panel content) ──────────────────────────────────────────
+const STEP_INFO: Record<number, { title: string; subtitle: string; tip: string }> = {
+  1: {
+    title: 'Contanos sobre tu negocio',
+    subtitle: 'Nombre y rubro — con esto configuramos todo lo demás.',
+    tip: 'Elegí bien el rubro, lo usamos para recomendarte el programa de fidelización ideal para vos.',
+  },
+  2: {
+    title: '¿Qué tipo de programa querés?',
+    subtitle: 'Te recomendamos uno según tu rubro, pero podés elegir el que quieras.',
+    tip: 'La tarjeta de sellos es la más usada — simple, efectiva y los clientes la entienden al instante.',
+  },
+  3: {
+    title: 'Configurá tu programa',
+    subtitle: 'Definí los parámetros del programa de fidelización.',
+    tip: '8 visitas es el número más popular. Suficiente para motivar sin que el cliente se canse de esperar.',
+  },
+  4: {
+    title: '¿Cómo se define el premio?',
+    subtitle: 'Decidí quién elige el premio al completar la tarjeta.',
+    tip: 'Que el cliente elija su premio genera más expectativa — y más ganas de volver a completar la tarjeta.',
+  },
+  5: {
+    title: 'Dale identidad a tu tarjeta',
+    subtitle: 'El logo y el color se muestran en la wallet pass de tus clientes.',
+    tip: 'Una tarjeta con tus colores se ve más profesional y genera más confianza en tus clientes.',
+  },
+  6: {
+    title: '¡Casi listo!',
+    subtitle: 'Así queda tu tarjeta. Esto es lo que van a ver tus clientes.',
+    tip: 'Una vez en el dashboard podés editar todo esto cuando quieras — el programa nunca es fijo.',
+  },
+}
+
 const PRESET_COLORS = ['#1E3329','#C75D3A','#185FA5','#533FB7','#854F0B','#2C2C2A','#5B8C5A','#9C3030']
 
 function darken(hex: string): string {
@@ -67,21 +102,7 @@ function darken(hex: string): string {
 // ─── Stampa mascot ────────────────────────────────────────────────────────────
 function StampaFrog({ size = 28 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
-      <circle cx="32" cy="28" r="15" fill="#E46C31"/>
-      <circle cx="68" cy="28" r="15" fill="#E46C31"/>
-      <circle cx="32" cy="28" r="7" fill="#01231A"/>
-      <circle cx="68" cy="28" r="7" fill="#01231A"/>
-      <circle cx="35" cy="25" r="3" fill="#E46C31"/>
-      <circle cx="71" cy="25" r="3" fill="#E46C31"/>
-      <ellipse cx="50" cy="50" rx="36" ry="14" fill="#E46C31"/>
-      <path d="M14 50 Q2 62 10 76" stroke="#E46C31" strokeWidth="9" strokeLinecap="round" fill="none"/>
-      <path d="M86 50 Q98 62 90 76" stroke="#E46C31" strokeWidth="9" strokeLinecap="round" fill="none"/>
-      <path d="M38 63 Q35 78 30 88" stroke="#E46C31" strokeWidth="7" strokeLinecap="round" fill="none"/>
-      <path d="M62 63 Q65 78 70 88" stroke="#E46C31" strokeWidth="7" strokeLinecap="round" fill="none"/>
-      <ellipse cx="27" cy="91" rx="11" ry="5" fill="#E46C31"/>
-      <ellipse cx="73" cy="91" rx="11" ry="5" fill="#E46C31"/>
-    </svg>
+    <img src="/stampa-mascot.png" alt="Stampy" width={size} height={size} style={{ objectFit: 'contain' }} />
   )
 }
 
@@ -239,9 +260,7 @@ function Nav({ onBack, onNext, nextLabel = 'Siguiente', disabled = false, showSk
 function Step1({ state, onChange, onNext }: { state: OBState; onChange: (p: Partial<OBState>) => void; onNext: () => void }) {
   return (
     <div className="ob-step">
-      <div className="ob-step-title">Contanos sobre tu negocio</div>
-      <div className="ob-step-sub">Nombre y rubro — con esto configuramos todo lo demás.</div>
-
+      <div className="ob-action-label">Empecemos con lo básico</div>
       <input
         className="ob-input"
         placeholder="Nombre del negocio"
@@ -286,9 +305,7 @@ function Step2({ state, onChange, onNext, onBack }: { state: OBState; onChange: 
 
   return (
     <div className="ob-step">
-      <div className="ob-step-title">¿Qué tipo de programa querés ofrecer?</div>
-      <div className="ob-step-sub">Te recomendamos uno según tu rubro, pero podés elegir el que quieras.</div>
-
+      <div className="ob-action-label">Elegí el que mejor se adapta a tu negocio</div>
       <div className="ob-card-types">
         {CARD_TYPES.map(ct => {
           const isRec = ct.id === recommendedType
@@ -330,11 +347,14 @@ function Step3({ state, onChange, onNext, onBack }: { state: OBState; onChange: 
     points:     'Cada vez que el scanner registra la visita, el cliente acumula estos puntos.',
     membership: 'Los clientes suben de nivel a medida que acumulan visitas. Podés editar los beneficios desde la sección Premios.',
   }
+  const actionLabels: Record<CardType, string> = {
+    stamp: 'Elegí la cantidad de visitas para completar la tarjeta',
+    points: 'Definí cuántos puntos suma cada visita',
+    membership: 'Tu programa tiene 4 niveles automáticos',
+  }
   return (
     <div className="ob-step">
-      <div className="ob-step-title">{titles[state.cardType]}</div>
-      <div className="ob-step-sub">{subs[state.cardType]}</div>
-
+      <div className="ob-action-label">{actionLabels[state.cardType]}</div>
       {state.cardType === 'stamp' && (
         <>
           <div className="ob-stamp-grid">
@@ -392,8 +412,7 @@ function Step4({ state, onChange, onNext, onBack }: { state: OBState; onChange: 
   if (state.cardType === 'membership') {
     return (
       <div className="ob-step">
-        <div className="ob-step-title">Los beneficios van con los niveles</div>
-        <div className="ob-step-sub">En una membresía, cada nivel tiene su propio beneficio. Vas a poder editarlos desde la sección Premios una vez que estés en el dashboard.</div>
+        <div className="ob-action-label">Los beneficios van con cada nivel</div>
         <div className="ob-info-box">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#185FA5" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
           <span>Bronze: bienvenida · Silver: 5% dto · Gold: regalo de cumpleaños · Black: beneficios exclusivos</span>
@@ -406,8 +425,7 @@ function Step4({ state, onChange, onNext, onBack }: { state: OBState; onChange: 
   if (state.cardType === 'points') {
     return (
       <div className="ob-step">
-        <div className="ob-step-title">Los premios se arman desde el dashboard</div>
-        <div className="ob-step-sub">Con puntos, vos definís el catálogo de premios y los puntos que cuesta cada uno. Es más flexible que un premio fijo.</div>
+        <div className="ob-action-label">Los premios se configuran desde el dashboard</div>
         <div className="ob-info-box">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#185FA5" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
           <span>Ej: Clase gratis (500 pts) · Mes de descuento (1200 pts) · Producto gratis (800 pts)</span>
@@ -420,9 +438,7 @@ function Step4({ state, onChange, onNext, onBack }: { state: OBState; onChange: 
   // Stamp: full prize config
   return (
     <div className="ob-step">
-      <div className="ob-step-title">¿Cómo se define el premio?</div>
-      <div className="ob-step-sub">Al completar las {state.stampsRequired} visitas, ¿qué recibe el cliente?</div>
-
+      <div className="ob-action-label">Al completar las {state.stampsRequired} visitas, ¿qué recibe el cliente?</div>
       <div className="ob-reward-opts">
         <div className={`ob-reward-opt${state.rewardMode === 'customer' ? ' ob-reward-opt--on' : ''}`}
           onClick={() => onChange({ rewardMode: 'customer' })}>
@@ -468,9 +484,7 @@ function Step5({ state, onChange, onNext, onBack }: { state: OBState; onChange: 
   }
   return (
     <div className="ob-step">
-      <div className="ob-step-title">Dale identidad a tu tarjeta</div>
-      <div className="ob-step-sub">El logo y el color se muestran en la wallet pass de tus clientes.</div>
-
+      <div className="ob-action-label">El logo y el color aparecen en la tarjeta digital</div>
       <div className="ob-brand-row">
         <div>
           <div className="ob-brand-label">Logo del negocio</div>
@@ -512,9 +526,7 @@ function Step6({ state, onBack, onFinish }: { state: OBState; onBack: () => void
 
   return (
     <div className="ob-step ob-step--wide">
-      <div className="ob-step-title">Así queda tu tarjeta</div>
-      <div className="ob-step-sub">Esto es exactamente lo que van a ver tus clientes en su wallet.</div>
-
+      <div className="ob-action-label">Esto es exactamente lo que van a ver tus clientes en su wallet</div>
       <div className="ob-final-layout">
         {/* Pass preview */}
         <div>
@@ -558,22 +570,41 @@ const CSS = `
   :root { --font-d: 'Plus Jakarta Sans', sans-serif; --font-b: 'Inter', sans-serif; }
   *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
   body { font-family:var(--font-b); background:#FBF6EE; color:#2B2620; }
-  .ob-shell { min-height:100vh; display:flex; flex-direction:column; }
-  /* Header */
-  .ob-header { display:flex; align-items:center; justify-content:space-between; padding:16px 32px; background:#fff; border-bottom:1px solid rgba(43,38,32,.08); }
-  .ob-logo { display:flex; align-items:center; gap:9px; }
-  .ob-wordmark { font-family:var(--font-d); font-weight:800; font-size:18px; color:#2B2620; letter-spacing:.05em; }
-  .ob-progress-wrap { display:flex; align-items:center; gap:12px; }
-  .ob-progress-bar { width:140px; height:5px; background:rgba(43,38,32,.1); border-radius:3px; overflow:hidden; }
-  .ob-progress-fill { height:100%; background:linear-gradient(90deg,#C75D3A,#D4A24C); border-radius:3px; transition:width .4s ease; }
-  .ob-progress-label { font-size:11.5px; color:rgba(43,38,32,.45); }
+  .ob-shell { min-height:100vh; display:flex; flex-direction:row; }
+  /* Left panel */
+  .ob-left { width:380px; flex-shrink:0; background:#01231A; display:flex; flex-direction:column; padding:36px 32px; gap:32px; min-height:100vh; position:sticky; top:0; height:100vh; overflow:hidden; }
+  .ob-left-logo { display:flex; align-items:center; }
+  .ob-dots { display:flex; gap:8px; align-items:center; }
+  .ob-dot { width:10px; height:10px; border-radius:50%; background:rgba(247,239,232,.2); transition:all .3s ease; }
+  .ob-dot--on { background:#E46C31; width:28px; border-radius:6px; }
+  .ob-step-label { font-size:11px; color:rgba(247,239,232,.35); letter-spacing:.06em; margin-top:4px; }
+  .ob-left-title { font-family:var(--font-d); font-weight:800; font-size:30px; color:#F7EFE8; line-height:1.2; }
+  .ob-left-title em { color:#E46C31; font-style:normal; }
+  .ob-left-sub { font-size:14px; color:rgba(247,239,232,.55); line-height:1.7; margin-top:8px; }
+  .ob-stampy-tip { background:rgba(247,239,232,.06); border:1px solid rgba(247,239,232,.1); border-radius:16px; padding:18px; display:flex; flex-direction:column; gap:12px; }
+  .ob-stampy-head { display:flex; align-items:center; gap:10px; }
+  .ob-stampy-name { font-size:12px; font-weight:700; color:rgba(247,239,232,.7); letter-spacing:.04em; }
+  .ob-stampy-text { font-size:13px; color:rgba(247,239,232,.55); line-height:1.65; }
+  /* Right panel */
+  .ob-right { flex:1; display:flex; align-items:center; justify-content:center; padding:52px 40px 40px; min-height:100vh; overflow-y:auto; position:relative; }
+  .ob-right-inner { width:100%; max-width:540px; display:flex; flex-direction:column; position:relative; z-index:1; }
+  .ob-right::before { content:''; position:absolute; width:500px; height:500px; border-radius:50%; background:rgba(199,93,58,.05); top:-150px; right:-150px; pointer-events:none; }
+  .ob-right::after { content:''; position:absolute; width:350px; height:350px; border-radius:50%; background:rgba(1,35,26,.04); bottom:-100px; left:-80px; pointer-events:none; }
+  /* Mobile header — hidden on desktop */
+  .ob-header { display:none; }
   /* Content */
   .ob-content { flex:1; display:flex; align-items:flex-start; justify-content:center; padding:48px 24px 32px; }
-  .ob-step { width:100%; max-width:560px; display:flex; flex-direction:column; }
-  .ob-step--wide { max-width:760px; }
-  .ob-step-title { font-family:var(--font-d); font-weight:700; font-size:28px; color:#2B2620; line-height:1.2; margin-bottom:8px; }
-  .ob-step-sub { font-size:14px; color:rgba(43,38,32,.5); line-height:1.6; margin-bottom:28px; max-width:480px; }
-  .ob-section-label { font-size:13px; font-weight:600; color:#2B2620; margin-bottom:12px; }
+  .ob-step { width:100%; display:flex; flex-direction:column; }
+  .ob-action-label { font-size:13px; font-weight:600; color:rgba(43,38,32,.45); margin-bottom:20px; line-height:1.5; }
+  .ob-mobile-step-title { display:none; }
+  .ob-mobile-step-title h2 { font-family:var(--font-d); font-weight:800; font-size:24px; color:#2B2620; line-height:1.2; margin-bottom:6px; }
+  .ob-mobile-step-title p { font-size:13px; color:rgba(43,38,32,.5); line-height:1.6; margin-bottom:16px; }
+  @media (max-width:768px) {
+  .ob-mobile-step-title { display:block; padding-bottom:16px; border-bottom:1px solid rgba(43,38,32,.06); margin-bottom:20px; }
+    .ob-mobile-dots { display:flex; gap:6px; margin-bottom:16px; }
+    .ob-mobile-dot { width:8px; height:8px; border-radius:50%; background:rgba(43,38,32,.15); }
+    .ob-mobile-dot--on { background:#C75D3A; width:22px; border-radius:5px; }
+}
   /* Nav */
   .ob-nav { display:flex; align-items:center; justify-content:space-between; margin-top:24px; }
   .ob-btn-back { display:flex; align-items:center; gap:6px; background:none; border:1.5px solid rgba(43,38,32,.15); border-radius:10px; padding:11px 20px; font-size:13px; font-weight:600; color:rgba(43,38,32,.55); cursor:pointer; font-family:var(--font-b); transition:all .15s; }
@@ -664,10 +695,12 @@ const CSS = `
   .ob-summary-note { font-size:11px; color:rgba(43,38,32,.4); margin-top:14px; padding-top:12px; border-top:1px solid rgba(43,38,32,.07); line-height:1.5; }
   .ob-finish-btn { width:100%; background:#5B8C5A; color:#fff; border:none; border-radius:12px; padding:14px; font-size:14px; font-weight:700; cursor:pointer; font-family:var(--font-d); margin-top:16px; transition:background .15s; }
   .ob-finish-btn:hover { background:#4A7349; }
-  @media (max-width:640px) {
-    .ob-header { padding:14px 20px; }
-    .ob-progress-bar { width:100px; }
-    .ob-content { padding:32px 16px 24px; }
+  @media (max-width:768px) {
+    .ob-shell { flex-direction:column; }
+    .ob-left { display:none; }
+    .ob-header { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; background:#01231A; }
+    .ob-right { align-items:flex-start; padding:0; min-height:calc(100vh - 64px); }
+    .ob-right-inner { max-width:100%; padding:24px 20px; }
     .ob-step-title { font-size:22px; }
     .ob-sector-grid { grid-template-columns:repeat(2,1fr); }
     .ob-final-layout { flex-direction:column; }
@@ -729,25 +762,73 @@ export default function OnboardingPage() {
   }} />,
   }
 
+  const info = STEP_INFO[step]
+
   return (
     <>
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
       <div className="ob-shell">
-        <div className="ob-header">
-          <div className="ob-logo">
-            <StampaFrog size={28} />
-            <span className="ob-wordmark">STAMPA</span>
+
+        {/* Left panel — desktop only */}
+        <div className="ob-left">
+          {/* Logo */}
+          <div className="ob-left-logo">
+            <img src="/stampa-mascot.png" alt="Stampy" style={{ width: 72, height: 72, objectFit: 'contain', flexShrink: 0 }} />
+            <img src="/stampa-wordmark.png" alt="Stampa" style={{ height: 52, objectFit: 'contain', marginLeft: -18, filter: 'brightness(0) invert(1)' }} />
           </div>
-          <div className="ob-progress-wrap">
-            <div className="ob-progress-bar">
-              <div className="ob-progress-fill" style={{ width: `${(step / TOTAL) * 100}%` }} />
+
+          {/* Progress dots */}
+          <div>
+            <div className="ob-dots">
+              {Array.from({ length: TOTAL }, (_, i) => (
+                <div key={i} className={`ob-dot${i + 1 === step ? ' ob-dot--on' : ''}`} />
+              ))}
             </div>
-            <span className="ob-progress-label">Paso {step} de {TOTAL}</span>
+            <div className="ob-step-label">PASO {step} DE {TOTAL}</div>
+          </div>
+
+          {/* Step title */}
+          <div>
+            <div className="ob-left-title">{info.title.split(' ').slice(0,-1).join(' ')} <em>{info.title.split(' ').slice(-1)}</em></div>
+            <div className="ob-left-sub">{info.subtitle}</div>
+          </div>
+
+          {/* Stampy tip — moved up, bigger mascot */}
+          <div className="ob-stampy-tip">
+            <div className="ob-stampy-head">
+              <img src="/stampa-mascot.png" alt="Stampy" style={{ width: 60, height: 60, objectFit: 'contain' }} />
+              <span className="ob-stampy-name">Tip de Stampy</span>
+            </div>
+            <div className="ob-stampy-text">{info.tip}</div>
+          </div>
+          
+          <div style={{flex:1}} />
+        </div>
+
+        {/* Mobile header */}
+        <div className="ob-header">
+          <div className="ob-left-logo">
+            <img src="/stampa-mascot.png" alt="Stampy" style={{ width: 40, height: 40, objectFit: 'contain' }} />
+            <img src="/stampa-wordmark.png" alt="Stampa" style={{ height: 28, objectFit: 'contain', marginLeft: -10, filter: 'brightness(0) invert(1)' }} />
           </div>
         </div>
-        <div className="ob-content">
-          {STEPS[step]}
+
+        {/* Right panel — form */}
+        <div className="ob-right">
+          <div className="ob-right-inner">
+            {/* Mobile step title + dots — hidden on desktop */}
+            <div className="ob-mobile-step-title">
+              <div className="ob-mobile-dots">
+                {Array.from({ length: TOTAL }, (_, i) => (
+                  <div key={i} className={`ob-mobile-dot${i + 1 === step ? ' ob-mobile-dot--on' : ''}`} />
+                ))}
+              </div>
+              <h2>{info.title}</h2>
+              <p>{info.subtitle}</p>
+            </div>
+            {STEPS[step]}
+          </div>
         </div>
       </div>
     </>
