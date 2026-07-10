@@ -2,23 +2,33 @@
 import React, { useState, useEffect } from 'react'
 import { apiRegister } from '@/lib/api'
 
-function StampaFrog({ size = 52 }: { size?: number }) {
+function StampaFrog({ size = 64 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
-      <circle cx="32" cy="28" r="15" fill="#E46C31"/>
-      <circle cx="68" cy="28" r="15" fill="#E46C31"/>
-      <circle cx="32" cy="28" r="7" fill="#01231A"/>
-      <circle cx="68" cy="28" r="7" fill="#01231A"/>
-      <circle cx="35" cy="25" r="3" fill="#E46C31"/>
-      <circle cx="71" cy="25" r="3" fill="#E46C31"/>
-      <ellipse cx="50" cy="50" rx="36" ry="14" fill="#E46C31"/>
-      <path d="M14 50 Q2 62 10 76" stroke="#E46C31" strokeWidth="9" strokeLinecap="round" fill="none"/>
-      <path d="M86 50 Q98 62 90 76" stroke="#E46C31" strokeWidth="9" strokeLinecap="round" fill="none"/>
-      <path d="M38 63 Q35 78 30 88" stroke="#E46C31" strokeWidth="7" strokeLinecap="round" fill="none"/>
-      <path d="M62 63 Q65 78 70 88" stroke="#E46C31" strokeWidth="7" strokeLinecap="round" fill="none"/>
-      <ellipse cx="27" cy="91" rx="11" ry="5" fill="#E46C31"/>
-      <ellipse cx="73" cy="91" rx="11" ry="5" fill="#E46C31"/>
-    </svg>
+    <img 
+      src="/stampa-mascot.png" 
+      alt="Stampa" 
+      width={size} 
+      height={size} 
+      style={{ objectFit: 'contain' }}
+    />
+  )
+}
+
+function StampaLogo({ dark = false }: { dark?: boolean }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
+      <StampaFrog size={170} />
+      <img 
+        src="/stampa-wordmark.png" 
+        alt="Stampa" 
+        style={{ 
+          height: 300, 
+          objectFit: 'contain',
+          marginLeft: -65,
+          filter: dark ? 'brightness(0) saturate(100%) invert(8%) sepia(50%) saturate(1000%) hue-rotate(120deg)' : 'none' 
+        }}
+      />
+    </div>
   )
 }
 
@@ -27,9 +37,7 @@ const CSS = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: var(--font-body); background: #FBF6EE; color: #2B2620; }
   .rg-shell { min-height: 100vh; display: flex; }
-  .rg-left { width: 400px; flex-shrink: 0; background: #01231A; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 40px; gap: 36px; }
-  .rg-logo { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-  .rg-wordmark { font-family: var(--font-display); font-weight: 800; font-size: 22px; color: #F7EFE8; letter-spacing: .08em; }
+  .rg-left { width: 450px; flex-shrink: 0; background: #01231A; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 40px; gap: 36px; }
   .rg-left-title { font-family: var(--font-display); font-weight: 700; font-size: 28px; color: #F7EFE8; line-height: 1.25; text-align: center; }
   .rg-left-title em { color: #E46C31; font-style: normal; }
   .rg-steps { display: flex; flex-direction: column; gap: 14px; width: 100%; }
@@ -130,10 +138,7 @@ export default function RegisterPage() {
       <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
       <div className="rg-shell">
         <div className="rg-left">
-          <div className="rg-logo">
-            <StampaFrog size={56} />
-            <div className="rg-wordmark">STAMPA</div>
-          </div>
+          <StampaLogo />
           <div className="rg-left-title">La fidelidad no es<br/>un algoritmo.<br/><em>Es humana.</em></div>
           <div className="rg-steps">
             {[
