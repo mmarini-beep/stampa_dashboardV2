@@ -150,6 +150,7 @@ export async function apiRegister(data: {
   password: string
   fullName: string
   termsAccepted: string
+  region?: string
 }) {
   const res = await request<{ token: string; owner: Owner }>('/api/auth/register', {
     method: 'POST',

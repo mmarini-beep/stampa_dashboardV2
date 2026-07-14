@@ -90,7 +90,7 @@ function injectStyles() {
 }
 
 export default function RegisterPage() {
-  const [form, setForm] = useState({ fullName: '', email: '', password: '', confirm: '', terms: false })
+  const [form, setForm] = useState({ fullName: '', email: '', password: '', confirm: '', terms: false, region: 'AR' })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
 
@@ -124,6 +124,7 @@ export default function RegisterPage() {
         password: form.password,
         fullName: form.fullName,
         termsAccepted: 'true',
+        region: form.region,
       })
       window.location.href = '/onboarding'
     } catch (err: any) {
@@ -174,6 +175,14 @@ export default function RegisterPage() {
                 {errors.email && <div className="rg-error">{errors.email}</div>}
               </div>
 
+              <div className="rg-field">
+                <label className="rg-label">País del negocio</label>
+                <select className="rg-input" value={form.region} onChange={e => set('region', e.target.value)}>
+                  <option value="AR">Argentina</option>
+                  <option value="ES">España</option>
+                </select>
+              </div>
+
               <div className="rg-divider" />
 
               <div className="rg-field">
@@ -193,7 +202,8 @@ export default function RegisterPage() {
                   {form.terms && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
                 </div>
                 <span className="rg-terms-text">
-                  Acepto los <a href="#" onClick={e => e.stopPropagation()}>Términos</a> y la <a href="#" onClick={e => e.stopPropagation()}>Política de privacidad</a>
+                  Acepto los <a href="/terms" target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>Términos y condiciones</a> y la <a href="/privacy" target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>Política de privacidad</a>
+                  {form.region === 'ES' && ' de acuerdo al Reglamento General de Protección de Datos (RGPD)'}
                 </span>
               </div>
               {errors.terms && <div className="rg-error" style={{ marginBottom: 12 }}>{errors.terms}</div>}
