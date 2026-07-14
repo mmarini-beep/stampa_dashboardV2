@@ -9,6 +9,21 @@ interface BusinessSettings {
   plan: string; planActiveCards: number; planMaxCards: number; alerts: BusinessAlerts
 }
 
+// Mismo listado de rubros que el onboarding — mantiene consistencia y evita
+// que el campo termine con un valor arbitrario que las rutas del backend
+// (SECTOR_FIELDS en businesses.js) no reconozcan.
+const SECTOR_LABELS: Record<string, string> = {
+  cafe: 'Cafetería / Bar',
+  restaurant: 'Restaurante',
+  hair: 'Peluquería / Barbería',
+  gym: 'Gym / Fitness',
+  bakery: 'Panadería / Pastelería',
+  spa: 'Spa / Belleza',
+  clothing: 'Ropa / Indumentaria',
+  bookstore: 'Librería',
+  other: 'Otro rubro',
+}
+
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="st-card">
@@ -41,6 +56,56 @@ function EditableText({ value, saveLabel, onSave }: { value: string; saveLabel: 
     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
       <span className="st-field-val">{val}</span>
       <button className="st-edit-link" onClick={() => setEditing(true)}>{t('edit')}</button>
+    </div>
+  )
+}
+
+function SectorField({ value, saving, saved, t, onSave }: { value: string; saving: boolean; saved: boolean; t: (k: any) => string; onSave: (v: string) => void }) {
+  const [editing, setEditing]   = useState(false)
+  const [draft, setDraft]       = useState(value)
+  const [confirming, setConfirming] = useState(false)
+
+  function startEdit() { setDraft(value); setEditing(true); setConfirming(false) }
+  function requestSave() {
+    if (draft === value) { setEditing(false); return }
+    setConfirming(true)
+  }
+  function confirmSave() {
+    onSave(draft)
+    setConfirming(false)
+    setEditing(false)
+  }
+  function cancel() { setConfirming(false); setEditing(false); setDraft(value) }
+
+  if (!editing) {
+    return (
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <span className="st-field-val">{SECTOR_LABELS[value] || value}</span>
+        <button className="st-edit-link" onClick={startEdit}>{t('edit')}</button>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <select className="st-inline-input" value={draft} onChange={e => setDraft(e.target.value)} autoFocus>
+          {Object.entries(SECTOR_LABELS).map(([id, label]) => (
+            <option key={id} value={id}>{label}</option>
+          ))}
+        </select>
+        <button className="st-btn-sm" onClick={requestSave}>{saving ? '...' : saved ? '✓' : t('save')}</button>
+        <button className="st-edit-link" onClick={cancel}>{t('cancel')}</button>
+      </div>
+      {confirming && (
+        <div className="st-sector-confirm">
+          <p>Cambiar el rubro no modifica tu tarjeta ni los campos del formulario que ya tenés configurados — solo actualiza las recomendaciones de aquí en más. Podés ajustar la tarjeta y el formulario manualmente cuando quieras desde Diseño y Formulario.</p>
+          <div className="st-delete-actions">
+            <button className="st-delete-btn-cancel" onClick={cancel}>{t('cancel')}</button>
+            <button className="st-sector-confirm-btn" onClick={confirmSave}>Sí, cambiar rubro</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -133,30 +198,40 @@ export function SettingsTab({ business: mockBusiness, businessId, onSave }: { bu
         .st-delete-btn-cancel{background:none;border:1px solid rgba(43,38,32,.2);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;color:rgba(43,38,32,.6);}
         .st-delete-btn-confirm{background:#B23B3B;border:none;border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;color:#fff;font-weight:700;}
         .st-timezone-note{font-size:10.5px;color:rgba(43,38,32,.4);margin-top:8px;line-height:1.5;}
+        .st-rules-note{font-size:12px;color:rgba(43,38,32,.6);line-height:1.6;background:rgba(199,93,58,.06);border:1px solid rgba(199,93,58,.15);border-radius:10px;padding:11px 14px;margin-bottom:14px;}
+        .st-rules-summary{font-size:11.5px;color:rgba(43,38,32,.5);margin-top:10px;line-height:1.6;}
+        .st-sector-confirm{position:absolute;z-index:5;top:calc(100% + 8px);left:0;right:0;min-width:320px;background:#fff;border:1px solid rgba(199,93,58,.25);border-radius:10px;padding:14px;box-shadow:0 8px 24px rgba(43,38,32,.12);}
+        .st-sector-confirm p{font-size:12px;color:rgba(43,38,32,.7);margin-bottom:12px;line-height:1.55;}
+        .st-sector-confirm-btn{background:#C75D3A;border:none;border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;color:#fff;font-weight:700;}
         .st-alerts-note{font-size:11px;color:rgba(43,38,32,.45);margin-bottom:12px;}
         @media(max-width:768px){
           .st-content{padding:14px 16px;}
           .st-plan-card{flex-direction:column;align-items:flex-start;gap:12px;}
           .st-field-row{flex-wrap:wrap;gap:8px;min-height:auto;}
           .st-inline-input{width:100%;}
+          .st-sector-confirm{position:static;min-width:0;margin-top:10px;box-shadow:none;}
         }
       `}</style>
 
       <div className="st-content">
         <Section title={t('st_profile')} icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"/><path d="M5 21V8L3 4h18l-2 4v13"/><path d="M9 21v-6h6v6"/></svg>}>
           <FieldRow label={t('st_name')}><EditableText value={business.name} saveLabel={saving ? '...' : saved ? '✓' : t('save')} onSave={v => handleSave('name', v)} /></FieldRow>
-          <FieldRow label={t('st_sector')}><EditableText value={business.sector} saveLabel={saving ? '...' : saved ? '✓' : t('save')} onSave={v => handleSave('sector', v)} /></FieldRow>
+          <FieldRow label={t('st_sector')}><SectorField value={business.sector} saving={saving} saved={saved} t={t} onSave={v => handleSave('sector', v)} /></FieldRow>
           <FieldRow label={t('st_timezone')}><span className="st-field-val">{business.timezone}</span></FieldRow>
           <div className="st-timezone-note">{t('st_timezone_note')}</div>
         </Section>
 
         <Section title={t('st_rules')} icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>}>
+          <div className="st-rules-note">Este valor define cuándo un cliente pasa a considerarse <strong>inactivo</strong> — afecta el conteo de Analytics y qué clientes entran en el segmento "Inactivos" al enviar notificaciones.</div>
           <FieldRow label={t('st_inactive_label')}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <input type="number" className="st-number-input" value={inactiveDays} min={1} max={365} onChange={e => { setInactiveDays(Number(e.target.value)); handleSave('inactiveDays', Number(e.target.value)) }} />
               <span style={{ fontSize: 12, color: 'rgba(43,38,32,.45)' }}>{t('days')}</span>
             </div>
           </FieldRow>
+          <div className="st-rules-summary">
+            Con este valor, un cliente que no vuelve en <strong>{inactiveDays} días</strong> se marca como inactivo automáticamente.
+          </div>
         </Section>
 
         <Section title={t('st_alerts')} icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>}>
