@@ -273,10 +273,11 @@ function Header({ title, t, setMobileOpen, setActive }: { title: string; t: (k: 
 }
 
 // ─── Overview ─────────────────────────────────────────────────────────────────
-function OverviewTab({ t, analyticsData, rewardsData, cards }: { 
+function OverviewTab({ t, analyticsData, rewardsData, detailedAnalytics, cards }: { 
   t: (k: any) => string
   analyticsData?: any
   rewardsData?: any
+  detailedAnalytics?: any
   cards?: any[]
 }) {
   const m = mockData.metrics
@@ -297,11 +298,12 @@ function OverviewTab({ t, analyticsData, rewardsData, cards }: {
   const hasPoints     = activeCards.some((c: any) => c.type === 'points')
   const initials = (n: string) => n.split(' ').map((w: string) => w[0]).join('')
 
+  const stampCard = activeCards.find((c: any) => c.type === 'stamp')
   const ADVANCED = [
-    { v: '68.4%', l: t('recurring' as any),       color: '#5B8C5A',  bg: 'rgba(91,140,90,.1)'   },
-    { v: '6.6',   l: t('avg_progress' as any),    color: '#185FA5',  bg: 'rgba(24,95,165,.1)'   },
-    { v: '42.3%', l: t('redemption_rate' as any), color: '#C75D3A',  bg: 'rgba(199,93,58,.1)'   },
-    { v: '4.2',   l: t('visits_to_prize' as any), color: '#9C7530',  bg: 'rgba(212,162,76,.15)' },
+    { v: `${detailedAnalytics?.recurringRate ?? 0}%`, l: t('recurring' as any),       color: '#5B8C5A',  bg: 'rgba(91,140,90,.1)'   },
+    { v: `${detailedAnalytics?.avgProgress ?? 0}`,    l: t('avg_progress' as any),    color: '#185FA5',  bg: 'rgba(24,95,165,.1)'   },
+    { v: `${detailedAnalytics?.comparison?.[2]?.current ?? 0}%`, l: t('redemption_rate' as any), color: '#C75D3A',  bg: 'rgba(199,93,58,.1)'   },
+    { v: `${stampCard?.stampsRequired ?? 0}`, l: t('visits_to_prize' as any), color: '#9C7530',  bg: 'rgba(212,162,76,.15)' },
   ]
 
   const TIER_MEMBERS: Record<string, number> = { '1': 111, '2': 89, '3': 52, '4': 15 }
@@ -336,7 +338,7 @@ function OverviewTab({ t, analyticsData, rewardsData, cards }: {
       <div className="ov-two-col">
         <div className="db-card">
           <div className="ov-card-title">{t('customer_growth' as any)}</div>
-          <div className="ov-card-sub">{t('last_6_months' as any)}</div>
+          <div className="ov-card-sub">Últimas 8 semanas</div>
           <div className="ov-bars">
             {(weeklyVisits || mockData.customerGrowth.map(({ month, users }: any) => ({ label: month, visits: users }))).map(({ label, visits }: any) => {
               const maxVal = weeklyVisits ? Math.max(...weeklyVisits.map((w: any) => w.visits), 1) : 5000
@@ -379,16 +381,22 @@ function OverviewTab({ t, analyticsData, rewardsData, cards }: {
             <div className="ov-card-title-row">
               <span className="ov-card-title">{t('top_rewards' as any)}</span>
             </div>
-            {mockData.topRewards.map((r: any, i: number) => (
-              <div key={r.name} className="ov-reward-row">
-                <span className={`ov-reward-rank${i === 0 ? ' ov-reward-rank--first' : ''}`}>{i + 1}</span>
-                <div className="ov-reward-info">
-                  <div className="ov-reward-name">{r.name}</div>
-                  <div className="ov-reward-bar"><div className="ov-reward-fill" style={{ width: `${(r.redeemed / r.max) * 100}%` }} /></div>
-                </div>
-                <span className="ov-reward-count">{r.redeemed}</span>
-              </div>
-            ))}
+            {rewardsData?.topPrizes?.length > 0
+              ? rewardsData.topPrizes.map((r: any, i: number) => {
+                  const max = rewardsData.topPrizes[0]?.count || 1
+                  return (
+                    <div key={r.prize} className="ov-reward-row">
+                      <span className={`ov-reward-rank${i === 0 ? ' ov-reward-rank--first' : ''}`}>{i + 1}</span>
+                      <div className="ov-reward-info">
+                        <div className="ov-reward-name">{r.prize}</div>
+                        <div className="ov-reward-bar"><div className="ov-reward-fill" style={{ width: `${(r.count / max) * 100}%` }} /></div>
+                      </div>
+                      <span className="ov-reward-count">{r.count}</span>
+                    </div>
+                  )
+                })
+              : <div className="ov-empty-note">Todavía no hay premios canjeados.</div>
+            }
           </div>
         )}
 
@@ -419,13 +427,16 @@ function OverviewTab({ t, analyticsData, rewardsData, cards }: {
             <span className="ov-card-title">{t('recent_activity' as any)}</span>
             <span className="ov-live"><span className="ov-live-dot" />{t('live' as any)}</span>
           </div>
-          {mockData.recentActivity.map((a: any) => (
-            <div key={a.id} className="ov-activity-row">
-              <div className={`ov-av ov-av--${a.type}`}>{initials(a.user)}</div>
-              <div className="ov-activity-text"><strong>{a.user}</strong> {a.action}{a.reward ? ` · ${a.reward}` : ''}</div>
-              <div className="ov-activity-time">{a.time}</div>
-            </div>
-          ))}
+          {detailedAnalytics?.recentActivity?.length > 0
+            ? detailedAnalytics.recentActivity.map((a: any, i: number) => (
+                <div key={i} className="ov-activity-row">
+                  <div className={`ov-av ov-av--${a.action === 'canjeó su premio' ? 'redeem' : a.action === 'se registró' ? 'signup' : 'stamp'}`}>{initials(a.name)}</div>
+                  <div className="ov-activity-text"><strong>{a.name}</strong> {a.action}</div>
+                  <div className="ov-activity-time">{a.time}</div>
+                </div>
+              ))
+            : <div className="ov-empty-note">Todavía no hay actividad registrada.</div>
+          }
         </div>
 
         {/* Insights */}
@@ -434,9 +445,39 @@ function OverviewTab({ t, analyticsData, rewardsData, cards }: {
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#C75D3A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6, verticalAlign: 'middle' }}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             {t('smart_insights' as any)}
           </div>
-          {mockData.insights.map((ins: any) => (
-            <div key={ins.id} className={`ov-insight ov-insight--${ins.type}`}>{ins.text}</div>
-          ))}
+          {(() => {
+            const insights: { type: string; text: string }[] = []
+            if (newDelta !== 0) {
+              insights.push({
+                type: newDelta >= 0 ? 'positive' : 'warning',
+                text: newDelta >= 0
+                  ? `Los nuevos registros crecieron ${newDelta}% este mes.`
+                  : `Los nuevos registros bajaron ${Math.abs(newDelta)}% este mes.`,
+              })
+            }
+            if (rewardsData?.topPrize && rewardsData.topPrize !== '—') {
+              insights.push({ type: 'info', text: `${rewardsData.topPrize} es tu premio más popular — considerá tenerlo bien abastecido.` })
+            }
+            const vot = detailedAnalytics?.visitsOverTime || []
+            if (vot.length >= 2) {
+              const last = vot[vot.length - 1].stamps
+              const prev = vot[vot.length - 2].stamps
+              if (prev > 0) {
+                const changePct = Math.round(((last - prev) / prev) * 100)
+                if (Math.abs(changePct) >= 10) {
+                  insights.push({
+                    type: changePct < 0 ? 'warning' : 'positive',
+                    text: changePct < 0
+                      ? `La actividad bajó ${Math.abs(changePct)}% en el último período. Considerá una notificación push.`
+                      : `La actividad subió ${changePct}% en el último período.`,
+                  })
+                }
+              }
+            }
+            return insights.length > 0
+              ? insights.map((ins, i) => <div key={i} className={`ov-insight ov-insight--${ins.type}`}>{ins.text}</div>)
+              : <div className="ov-empty-note">Todavía no hay suficientes datos para generar insights.</div>
+          })()}
         </div>
       </div>
         </>
@@ -675,6 +716,8 @@ const CSS = `
   .ov-av--redeem{background:rgba(199,93,58,.15);color:#C75D3A;}
   .ov-av--signup{background:rgba(91,140,90,.15);color:#5B8C5A;}
   .ov-av--login{background:rgba(24,95,165,.12);color:#185FA5;}
+  .ov-av--stamp{background:rgba(83,63,183,.12);color:#533FB7;}
+  .ov-empty-note{font-size:12px;color:rgba(43,38,32,.4);padding:16px 0;text-align:center;}
   .ov-activity-text{flex:1;font-size:12px;color:rgba(43,38,32,.65);}
   .ov-activity-text strong{color:#2B2620;font-weight:600;}
   .ov-activity-time{font-size:10px;color:rgba(43,38,32,.35);flex-shrink:0;}
@@ -735,8 +778,14 @@ export default function DashboardPage() {
   const [customersTotal, setCustomersTotal]         = useState(0)
   const [customersSearch, setCustomersSearch]       = useState('')
   const [customersStatus, setCustomersStatus]       = useState<'all' | 'active' | 'inactive'>('all')
+  const [customersSortKey, setCustomersSortKey]     = useState<'name' | 'progress' | 'status' | 'lastActivity'>('progress')
+  const [customersSortDir, setCustomersSortDir]     = useState<'asc' | 'desc'>('desc')
   const [customersLoading, setCustomersLoading]     = useState(false)
+  // Cache en memoria: mismo filtro/orden/página ya pedido antes → instantáneo,
+  // sin volver a golpear la API. Se invalida (bypass) en onRefresh, ej. tras un delete.
+  const customersCacheRef = useRef<Map<string, any>>(new Map())
   const [analyticsData, setAnalyticsData]           = useState<any>(null)
+  const [detailedAnalytics, setDetailedAnalytics]   = useState<any>(null)
   const [rewardsData, setRewardsData]               = useState<any>(null)
   const [loading, setLoading]       = useState(true)
 
@@ -758,7 +807,8 @@ export default function DashboardPage() {
         const cardsPromise      = apiGetCards(bid)
         const teamPromise       = apiGetTeam(bid)
         const analyticsPromise  = fetch(`http://localhost:5002/api/businesses/${bid}/analytics`, { headers: authHeaders }).then(r => r.json())
-        const customersPromise  = fetch(`http://localhost:5002/api/businesses/${bid}/customers`, { headers: authHeaders }).then(r => r.json())
+        const detailedPromise   = fetch(`http://localhost:5002/api/businesses/${bid}/analytics/detailed?range=30d`, { headers: authHeaders }).then(r => r.json())
+        const customersPromise  = fetch(`http://localhost:5002/api/businesses/${bid}/customers?page=1&limit=50&sortBy=progress&sortDir=desc`, { headers: authHeaders }).then(r => r.json())
         const notifPromise      = fetch(`http://localhost:5002/api/businesses/${bid}/notifications`, { headers: authHeaders }).then(r => r.json())
         // rewards-stats needs the first card's type, so it chains off cardsPromise instead of
         // blocking behind team/analytics/customers/notifications like it used to
@@ -771,8 +821,8 @@ export default function DashboardPage() {
           ).then(r => r.json())
         })
 
-        const [teamRes, cardsRes, analyticsRes, customersRes, notifRes, rewardsRes] = await Promise.allSettled([
-          teamPromise, cardsPromise, analyticsPromise, customersPromise, notifPromise, rewardsPromise,
+        const [teamRes, cardsRes, analyticsRes, customersRes, notifRes, rewardsRes, detailedRes] = await Promise.allSettled([
+          teamPromise, cardsPromise, analyticsPromise, customersPromise, notifPromise, rewardsPromise, detailedPromise,
         ])
 
         if (teamRes.status === 'fulfilled') {
@@ -808,6 +858,7 @@ export default function DashboardPage() {
           setCustomers(customersRes.value.customers || [])
           setCustomersTotal(customersRes.value.total || 0)
           setCustomersTotalPages(customersRes.value.pages || 1)
+          customersCacheRef.current.set('1||all|progress|desc', customersRes.value)
         } else console.error('customers load error:', customersRes.reason)
 
         if (notifRes.status === 'fulfilled') {
@@ -817,6 +868,9 @@ export default function DashboardPage() {
 
         if (rewardsRes.status === 'fulfilled' && rewardsRes.value) setRewardsData(rewardsRes.value)
         else if (rewardsRes.status === 'rejected') console.error('rewards load error:', rewardsRes.reason)
+
+        if (detailedRes.status === 'fulfilled') setDetailedAnalytics(detailedRes.value)
+        else console.error('detailed analytics load error:', detailedRes.reason)
       }
     } catch (err) {
       console.error(err)
@@ -825,11 +879,33 @@ export default function DashboardPage() {
     }
   }
 
-  async function loadCustomers(page: number, search: string, status: 'all' | 'active' | 'inactive') {
+  async function loadCustomers(
+    page: number,
+    search: string,
+    status: 'all' | 'active' | 'inactive',
+    sortKey: 'name' | 'progress' | 'status' | 'lastActivity' = customersSortKey,
+    sortDir: 'asc' | 'desc' = customersSortDir,
+    opts: { bypassCache?: boolean } = {}
+  ) {
     if (!businessId) return
+
+    const cacheKey = `${page}|${search}|${status}|${sortKey}|${sortDir}`
+    const cached = customersCacheRef.current.get(cacheKey)
+    if (cached && !opts.bypassCache) {
+      // Ya lo pedimos antes con estos mismos filtros — mostralo al toque,
+      // sin spinner ni round-trip.
+      setCustomers(cached.customers || [])
+      setCustomersTotal(cached.total || 0)
+      setCustomersTotalPages(cached.pages || 1)
+      setCustomersPage(page)
+      setCustomersSortKey(sortKey)
+      setCustomersSortDir(sortDir)
+      return
+    }
+
     setCustomersLoading(true)
     try {
-      const params = new URLSearchParams({ page: String(page), limit: '50' })
+      const params = new URLSearchParams({ page: String(page), limit: '50', sortBy: sortKey, sortDir })
       if (search) params.set('search', search)
       if (status !== 'all') params.set('status', status)
       const res = await fetch(`http://localhost:5002/api/businesses/${businessId}/customers?${params.toString()}`, {
@@ -839,10 +915,13 @@ export default function DashboardPage() {
         }
       })
       const data = await res.json()
+      customersCacheRef.current.set(cacheKey, data)
       setCustomers(data.customers || [])
       setCustomersTotal(data.total || 0)
       setCustomersTotalPages(data.pages || 1)
       setCustomersPage(page)
+      setCustomersSortKey(sortKey)
+      setCustomersSortDir(sortDir)
     } catch (err) {
       console.error('Error loading customers page:', err)
     } finally {
@@ -871,7 +950,7 @@ export default function DashboardPage() {
 
   function renderTab() {
     switch (active) {
-      case 'overview':      return <OverviewTab t={t} analyticsData={analyticsData} rewardsData={rewardsData} cards={cards} />
+      case 'overview':      return <OverviewTab t={t} analyticsData={analyticsData} rewardsData={rewardsData} detailedAnalytics={detailedAnalytics} cards={cards} />
       case 'customers': return customersTotal > 0
         ? <CustomersTab
             customers={mapCustomersForTab(customers, cards.find((c: any) => c.isActive) || cards[0])}
@@ -884,11 +963,14 @@ export default function DashboardPage() {
             nearCount={rewardsData?.nearPrize ?? 0}
             search={customersSearch}
             statusFilter={customersStatus}
+            sortKey={customersSortKey}
+            sortDir={customersSortDir}
             loading={customersLoading}
             onSearchChange={(q: string) => { setCustomersSearch(q); loadCustomers(1, q, customersStatus) }}
             onStatusFilterChange={(s: any) => { setCustomersStatus(s); loadCustomers(1, customersSearch, s) }}
+            onSortChange={(key: any, dir: any) => loadCustomers(1, customersSearch, customersStatus, key, dir)}
             onPageChange={(p: number) => loadCustomers(p, customersSearch, customersStatus)}
-            onRefresh={() => loadCustomers(customersPage, customersSearch, customersStatus)}
+            onRefresh={() => { customersCacheRef.current.clear(); loadCustomers(customersPage, customersSearch, customersStatus, customersSortKey, customersSortDir, { bypassCache: true }) }}
           />
         : <div className="db-content"><EmptyState
             icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>}

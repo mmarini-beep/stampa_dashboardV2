@@ -1,5 +1,5 @@
 'use client'
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { usePlan } from '@/data/plans'
 import { useLang } from '@/data/i18n'
 
@@ -38,62 +38,27 @@ const CARD_CONFIG: Record<CardType, {
   chartTitle: string
   chartSub: string
   retentionSub: string
-  funnelStages: FunnelStage[]
-  compItems: CompItem[]
   progressUnit: string
   segmentBasis: string
 }> = {
   stamp: {
-    chartTitle: 'Sellos otorgados por día',
+    chartTitle: 'Sellos otorgados',
     chartSub: 'Actividad del programa de sellos',
     retentionSub: 'clientes con +1 visita en los últimos 30 días',
-    funnelStages: [
-      { stage: 'Registro',         value: 320 },
-      { stage: '1ra visita',       value: 290 },
-      { stage: 'Recurrente',       value: 180 },
-      { stage: 'Premio canjeado',  value: 95  },
-    ],
-    compItems: [
-      { label: 'Nuevos clientes',  current: 287, previous: 198, unit: '' },
-      { label: 'Sellos otorgados', current: 890, previous: 750, unit: '' },
-      { label: 'Tasa de canje',    current: 42,  previous: 38,  unit: '%' },
-    ],
     progressUnit: 'sellos',
     segmentBasis: 'por progreso de sellos',
   },
   points: {
-    chartTitle: 'Puntos acumulados por día',
+    chartTitle: 'Puntos acumulados',
     chartSub: 'Actividad del programa de puntos',
     retentionSub: 'clientes con +1 acumulación en los últimos 30 días',
-    funnelStages: [
-      { stage: 'Registro',          value: 320 },
-      { stage: '1ra acumulación',   value: 285 },
-      { stage: 'Canjea puntos',     value: 160 },
-      { stage: 'Premio del catálogo', value: 88 },
-    ],
-    compItems: [
-      { label: 'Nuevos clientes',  current: 287, previous: 198, unit: '' },
-      { label: 'Puntos otorgados', current: 12400, previous: 9800, unit: '' },
-      { label: 'Premios canjeados', current: 88, previous: 62, unit: '' },
-    ],
     progressUnit: 'puntos',
     segmentBasis: 'por puntos acumulados',
   },
   membership: {
-    chartTitle: 'Visitas registradas por día',
+    chartTitle: 'Visitas registradas',
     chartSub: 'Actividad del programa de membresía',
     retentionSub: 'miembros activos en los últimos 30 días',
-    funnelStages: [
-      { stage: 'Registro',       value: 320 },
-      { stage: '1ra visita',     value: 290 },
-      { stage: 'Alcanzó Silver', value: 142 },
-      { stage: 'Alcanzó Gold+',  value: 67  },
-    ],
-    compItems: [
-      { label: 'Nuevos miembros',  current: 287, previous: 198, unit: '' },
-      { label: 'Upgrades de tier', current: 54,  previous: 38,  unit: '' },
-      { label: 'Miembros Gold+',   current: 67,  previous: 48,  unit: '' },
-    ],
     progressUnit: 'visitas',
     segmentBasis: 'por tier y actividad',
   },
@@ -229,7 +194,7 @@ export function AnalyticsTab({ data, analyticsData, cards }: { data: AnalyticsDa
   const [range, setRange] = useState<Range>('30d')
   const activeCards = (cards && cards.length > 0)
   ? cards.filter((c: any) => c.isActive)
-  : data.cardDesigns.filter((c: CardDesign) => c.isActive)  
+  : []
   const [selectedCardId, setSelectedCardId] = useState<string>(activeCards[0]?.id || '')
 
   const selectedCard = activeCards.find((c: CardDesign) => c.id === selectedCardId) || activeCards[0]
@@ -240,17 +205,52 @@ export function AnalyticsTab({ data, analyticsData, cards }: { data: AnalyticsDa
     { key: '7d', label: '7 días' }, { key: '30d', label: '30 días' }, { key: '90d', label: '90 días' },
   ]
 
-  // Use real analytics data when available, fall back to mockData
+  // ── Datos reales, calculados a partir de la colección Visit ──────────────
+  const [detailed, setDetailed] = useState<{
+    visitsOverTime: VisitDay[]
+    heatmap: HeatRow[]
+    topCustomers: TopCustomer[]
+    funnel: FunnelStage[]
+    comparison: CompItem[]
+    frequency: { avgDays: number; trend: number; distribution: FreqBucket[] }
+    prizeTimeDistribution: PrizeTime[]
+  } | null>(null)
+  const [detailedLoading, setDetailedLoading] = useState(true)
+
+  useEffect(() => {
+    const businessId = localStorage.getItem('stampa_business_id')
+    if (!businessId) return
+    setDetailedLoading(true)
+    fetch(`http://localhost:5002/api/businesses/${businessId}/analytics/detailed?range=${range}`, {
+      headers: { Authorization: 'Bearer ' + localStorage.getItem('stampa_token') }
+    })
+      .then(r => r.json())
+      .then(d => setDetailed(d))
+      .catch(err => console.error('Error loading detailed analytics:', err))
+      .finally(() => setDetailedLoading(false))
+  }, [range])
+
+  // Use real analytics data when available, fall back to 0 (no mock) — la
+  // colección Visit es nueva, así que hasta que se acumulen visitas reales
+  // estas secciones van a mostrarse vacías/en 0, no con números inventados.
   const realMetrics = analyticsData || null
-  const segTotal = data.segments.champions + data.segments.atRisk + data.segments.newCustomers + data.segments.dormant
-  const prizeMax = Math.max(...data.prizeTimeDistribution.map((p: PrizeTime) => p.count))
-  const freqMax  = Math.max(...data.frequency.distribution.map((b: FreqBucket) => b.count))
+  const visitsOverTime         = detailed?.visitsOverTime ?? []
+  const heatmapData            = detailed?.heatmap ?? []
+  const topCustomers           = detailed?.topCustomers ?? []
+  const funnelData             = detailed?.funnel ?? []
+  const comparisonData         = detailed?.comparison ?? []
+  const frequency              = detailed?.frequency ?? { avgDays: 0, trend: 0, distribution: [] }
+  const prizeTimeDistribution  = detailed?.prizeTimeDistribution ?? []
+
+  const segTotal = (realMetrics?.active ?? 0) + (realMetrics?.inactive ?? 0)
+  const prizeMax = Math.max(1, ...prizeTimeDistribution.map((p: PrizeTime) => p.count))
+  const freqMax  = Math.max(1, ...frequency.distribution.map((b: FreqBucket) => b.count))
 
   const SEGMENTS = [
-    { label: 'Activos',    desc: 'Visitaron recientemente', color: '#5B8C5A', bg: 'rgba(91,140,90,.1)',   val: realMetrics?.active ?? data.segments.champions    },
-    { label: 'Inactivos',  desc: `Sin actividad reciente`,       color: '#B23B3B', bg: 'rgba(178,59,59,.08)',  val: realMetrics?.inactive ?? data.segments.dormant      },
-    { label: 'Nuevos',     desc: `Registrados este mes`,         color: '#185FA5', bg: 'rgba(24,95,165,.1)',   val: realMetrics?.newThisMonth ?? data.segments.newCustomers },
-    { label: 'Con wallet', desc: `Tienen la tarjeta instalada`,  color: '#533FB7', bg: 'rgba(83,63,183,.08)',  val: realMetrics?.withDevice ?? data.segments.atRisk },
+    { label: 'Activos',    desc: 'Visitaron recientemente', color: '#5B8C5A', bg: 'rgba(91,140,90,.1)',   val: realMetrics?.active ?? 0    },
+    { label: 'Inactivos',  desc: `Sin actividad reciente`,       color: '#B23B3B', bg: 'rgba(178,59,59,.08)',  val: realMetrics?.inactive ?? 0      },
+    { label: 'Nuevos',     desc: `Registrados este mes`,         color: '#185FA5', bg: 'rgba(24,95,165,.1)',   val: realMetrics?.newThisMonth ?? 0 },
+    { label: 'Con wallet', desc: `Tienen la tarjeta instalada`,  color: '#533FB7', bg: 'rgba(83,63,183,.08)',  val: realMetrics?.withDevice ?? 0 },
   ]
 
   const TYPE_ICONS: Record<CardType, string> = {
@@ -266,6 +266,7 @@ export function AnalyticsTab({ data, analyticsData, cards }: { data: AnalyticsDa
         .an-card{background:#FFFFFF;border:1px solid rgba(43,38,32,.07);border-radius:14px;padding:16px;box-shadow:0 1px 8px rgba(43,38,32,.04);}
         .an-ctitle{font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:13px;color:#2B2620;margin-bottom:2px;}
         .an-csub{font-size:11px;color:rgba(43,38,32,.45);margin-bottom:12px;}
+        .an-empty-note{font-size:12px;color:rgba(43,38,32,.4);padding:20px 0;text-align:center;}
 
         /* ── Toolbar ── */
         .an-toolbar{display:flex;align-items:center;gap:8px;}
@@ -405,24 +406,29 @@ export function AnalyticsTab({ data, analyticsData, cards }: { data: AnalyticsDa
         <div className="an-2col">
           <div className="an-card">
             <div className="an-ctitle">{cfg.chartTitle}</div>
-            <div className="an-csub">{cfg.chartSub}</div>
-            <LineChart data={data.visitsOverTime} />
-            <div className="an-chart-labels">
-              {data.visitsOverTime.map((d: VisitDay) => <span key={d.day} className="an-chart-label">{d.day}</span>)}
-            </div>
+            <div className="an-csub">{cfg.chartSub} · {range === '7d' ? 'por día' : 'por semana'}</div>
+            {visitsOverTime.length > 0
+              ? <>
+                  <LineChart data={visitsOverTime} />
+                  <div className="an-chart-labels">
+                    {visitsOverTime.map((d: VisitDay, i: number) => <span key={i} className="an-chart-label">{d.day}</span>)}
+                  </div>
+                </>
+              : <div className="an-empty-note">Todavía no hay suficientes visitas registradas en este rango.</div>
+            }
           </div>
           <div className="an-card">
             <div className="an-ctitle">Tasa de retención</div>
             <div className="an-csub">Clientes que vuelven</div>
             <div className="an-ret">
-              <div className="an-ret-num">73%</div>
+              <div className="an-ret-num">{realMetrics?.retentionRate ?? 0}%</div>
               <div>
                 <div className="an-ret-title">Regresan activamente</div>
                 <div className="an-ret-def">{cfg.retentionSub}</div>
               </div>
             </div>
             <div className="an-ret-note">
-              El 27% restante no registró actividad — considerá una campaña desde Notifications.
+              El {100 - (realMetrics?.retentionRate ?? 0)}% restante no registró actividad — considerá una campaña desde Notifications.
             </div>
           </div>
         </div>
@@ -456,11 +462,14 @@ export function AnalyticsTab({ data, analyticsData, cards }: { data: AnalyticsDa
         <div className="an-lbl">{t('an_conversion' as any)}</div>
         <div className="an-card">
           <div className="an-ctitle">Funnel de conversión</div>
-          <div className="an-csub">% de clientes que continúa a la siguiente etapa</div>
-          <Funnel data={cfg.funnelStages} />
+          <div className="an-csub">% de clientes que continúa a la siguiente etapa (histórico completo)</div>
+          {funnelData.length > 0
+            ? <Funnel data={funnelData} />
+            : <div className="an-empty-note">Todavía no hay suficientes visitas registradas.</div>
+          }
         </div>
         <div className="an-3col">
-          {cfg.compItems.map((item: CompItem) => {
+          {comparisonData.map((item: CompItem) => {
             const delta = pctChange(item.current, item.previous)
             const up = delta >= 0
             return (
@@ -487,7 +496,10 @@ export function AnalyticsTab({ data, analyticsData, cards }: { data: AnalyticsDa
           <div className="an-card">
             <div className="an-ctitle">Horarios pico</div>
             <div className="an-csub">Visitas por día y bloque horario</div>
-            <Heatmap data={data.heatmap} />
+            {heatmapData.length > 0
+              ? <Heatmap data={heatmapData} />
+              : <div className="an-empty-note">Todavía no hay suficientes visitas registradas en este rango.</div>
+            }
           </div>
           <div className="an-card">
             {cardType === 'membership'
@@ -499,21 +511,24 @@ export function AnalyticsTab({ data, analyticsData, cards }: { data: AnalyticsDa
               : <>
                   <div className="an-ctitle">Top clientes</div>
                   <div className="an-csub">Por cantidad de {cfg.progressUnit}</div>
-                  {data.topCustomers.map((c: TopCustomer, i: number) => {
-                    const max = data.topCustomers[0]?.visits || 1
-                    return (
-                      <div key={c.name} className="an-tr">
-                        <div className={`an-trk${i === 0 ? ' an-trk--1' : ''}`}>{i + 1}</div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <span className="an-tn">{c.name}</span>
-                            <span className="an-tv">{c.visits}</span>
+                  {topCustomers.length > 0
+                    ? topCustomers.map((c: TopCustomer, i: number) => {
+                        const max = topCustomers[0]?.visits || 1
+                        return (
+                          <div key={c.name} className="an-tr">
+                            <div className={`an-trk${i === 0 ? ' an-trk--1' : ''}`}>{i + 1}</div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span className="an-tn">{c.name}</span>
+                                <span className="an-tv">{c.visits}</span>
+                              </div>
+                              <div className="an-tbar"><div className="an-tfill" style={{ width: `${(c.visits / max) * 100}%` }} /></div>
+                            </div>
                           </div>
-                          <div className="an-tbar"><div className="an-tfill" style={{ width: `${(c.visits / max) * 100}%` }} /></div>
-                        </div>
-                      </div>
-                    )
-                  })}
+                        )
+                      })
+                    : <div className="an-empty-note">Todavía no hay suficientes visitas registradas.</div>
+                  }
                 </>
             }
           </div>
@@ -525,37 +540,44 @@ export function AnalyticsTab({ data, analyticsData, cards }: { data: AnalyticsDa
           <div className="an-card">
             <div className="an-ctitle">Frecuencia de visita</div>
             <div className="an-csub">Días promedio entre visitas</div>
-            <div style={{ marginBottom: 4 }}>
-              <span className="an-freq-stat">{data.frequency.avgDays}</span>
-              <span className="an-freq-unit"> días</span>
-            </div>
-            <div className="an-freq-trend">
-              {data.frequency.trend < 0
-                ? `↓ ${Math.abs(data.frequency.trend)} días menos — el programa está generando hábito`
-                : `↑ ${data.frequency.trend} días más — los clientes tardan más en volver`}
-            </div>
-            <div className="an-freq-bars">
-              {data.frequency.distribution.map((b: FreqBucket) => (
-                <div key={b.label} className="an-freq-row">
-                  <span className="an-freq-lbl">{b.label}</span>
-                  <div className="an-freq-bar"><div className="an-freq-fill" style={{ width: `${(b.count / freqMax) * 100}%` }} /></div>
-                  <span className="an-freq-cnt">{b.count}</span>
-                </div>
-              ))}
-            </div>
+            {frequency.distribution.length > 0 ? <>
+              <div style={{ marginBottom: 4 }}>
+                <span className="an-freq-stat">{frequency.avgDays}</span>
+                <span className="an-freq-unit"> días</span>
+              </div>
+              <div className="an-freq-trend">
+                {frequency.trend < 0
+                  ? `↓ ${Math.abs(frequency.trend)} días menos — el programa está generando hábito`
+                  : frequency.trend > 0
+                  ? `↑ ${frequency.trend} días más — los clientes tardan más en volver`
+                  : 'Todavía no hay suficiente historial para calcular una tendencia'}
+              </div>
+              <div className="an-freq-bars">
+                {frequency.distribution.map((b: FreqBucket) => (
+                  <div key={b.label} className="an-freq-row">
+                    <span className="an-freq-lbl">{b.label}</span>
+                    <div className="an-freq-bar"><div className="an-freq-fill" style={{ width: `${(b.count / freqMax) * 100}%` }} /></div>
+                    <span className="an-freq-cnt">{b.count}</span>
+                  </div>
+                ))}
+              </div>
+            </> : <div className="an-empty-note">Se necesitan al menos 2 visitas por cliente para calcular esto.</div>}
           </div>
           <div className="an-card" style={{ display: 'flex', flexDirection: 'column' }}>
             <div className="an-ctitle">¿Cuándo se canjean los premios?</div>
             <div className="an-csub">Distribución por horario y día</div>
-            <div className="an-prize-bars">
-              {data.prizeTimeDistribution.map((p: PrizeTime) => (
-                <div key={p.time} className="an-prow">
-                  <span className="an-plbl">{p.time}</span>
-                  <div className="an-pbar"><div className="an-pfill" style={{ width: `${(p.count / prizeMax) * 100}%` }} /></div>
-                  <span className="an-pcnt">{p.count}</span>
+            {prizeTimeDistribution.some((p: PrizeTime) => p.count > 0)
+              ? <div className="an-prize-bars">
+                  {prizeTimeDistribution.map((p: PrizeTime) => (
+                    <div key={p.time} className="an-prow">
+                      <span className="an-plbl">{p.time}</span>
+                      <div className="an-pbar"><div className="an-pfill" style={{ width: `${(p.count / prizeMax) * 100}%` }} /></div>
+                      <span className="an-pcnt">{p.count}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              : <div className="an-empty-note">Todavía no hay premios canjeados registrados en este rango.</div>
+            }
           </div>
         </div>
 

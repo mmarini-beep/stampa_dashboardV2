@@ -23,9 +23,12 @@ interface CustomersTabProps {
   nearCount: number
   search: string
   statusFilter: 'all' | 'active' | 'inactive'
+  sortKey: SortKey
+  sortDir: SortDir
   loading?: boolean
   onSearchChange: (q: string) => void
   onStatusFilterChange: (s: 'all' | 'active' | 'inactive') => void
+  onSortChange: (key: SortKey, dir: SortDir) => void
   onPageChange: (page: number) => void
   onRefresh: () => void
 }
@@ -145,8 +148,8 @@ function CustomerPanel({ customer, dynamicFieldLabel, onClose, onDelete }: {
 export function CustomersTab({
   customers, dynamicFieldLabel = 'Premio',
   page, totalPages, total, activeCount, inactiveCount, nearCount,
-  search, statusFilter, loading,
-  onSearchChange, onStatusFilterChange, onPageChange, onRefresh,
+  search, statusFilter, sortKey, sortDir, loading,
+  onSearchChange, onStatusFilterChange, onSortChange, onPageChange, onRefresh,
 }: CustomersTabProps) {
   const t = useLang()
   const [searchDraft, setSearchDraft] = useState(search)
@@ -179,18 +182,15 @@ export function CustomersTab({
       setDeleting(false)
     }
   }
-  const [sortKey, setSortKey]     = useState<SortKey>('progress')
-  const [sortDir, setSortDir]     = useState<SortDir>('desc')
-
   function handleSort(key: SortKey) {
-    if (sortKey === key) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
-    else { setSortKey(key); setSortDir('desc') }
+    if (sortKey === key) onSortChange(key, sortDir === 'asc' ? 'desc' : 'asc')
+    else onSortChange(key, 'desc')
   }
 
-  // El sort acá es solo sobre la página actual (50 clientes) — ordenar las
-  // 127 filas reales en el servidor requeriría que el backend soporte un
-  // parámetro de sort, que hoy no tiene (siempre ordena por lastUpdate).
-  const filtered = sortCustomers(customers, sortKey, sortDir)
+  // El backend ya filtra, ordena y pagina — esto es directamente lo que hay
+  // que mostrar, sin re-ordenar en el cliente (eso solo alcanzaba a la
+  // página visible y daba un orden inconsistente con las demás páginas).
+  const filtered = customers
 
   return (
     <>
@@ -302,7 +302,7 @@ export function CustomersTab({
               <button className={`ct-pill${statusFilter === 'all' ? ' ct-pill--on' : ''}`} onClick={() => onStatusFilterChange('all')}>{t('ct_all')} ({total})</button>
               <button className={`ct-pill${statusFilter === 'active' ? ' ct-pill--on' : ''}`} onClick={() => onStatusFilterChange('active')}>{t('ct_active')} ({activeCount})</button>
               <button className={`ct-pill${statusFilter === 'inactive' ? ' ct-pill--on' : ''}`} onClick={() => onStatusFilterChange('inactive')}>{t('ct_inactive')} ({inactiveCount})</button>
-              {nearCount > 0 && <button className="ct-pill" onClick={() => { onStatusFilterChange('all'); setSortKey('progress'); setSortDir('desc') }}>{t('ct_near_prize')} ({nearCount})</button>}
+              {nearCount > 0 && <button className="ct-pill" onClick={() => { onStatusFilterChange('all'); onSortChange('progress', 'desc') }}>{t('ct_near_prize')} ({nearCount})</button>}
             </div>
           </div>
 
