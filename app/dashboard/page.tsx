@@ -476,6 +476,42 @@ function ComingSoon({ label }: { label: string }) {
   )
 }
 
+// ─── Mapeo de clientes: API cruda → shape que espera CustomersTab ─────────────
+function formatRelativeTime(timestamp: number): string {
+  if (!timestamp) return '—'
+  const diffMs = Date.now() - timestamp
+  const diffMin = Math.floor(diffMs / 60000)
+  if (diffMin < 1) return 'ahora'
+  if (diffMin < 60) return `${diffMin}m ago`
+  const diffH = Math.floor(diffMin / 60)
+  if (diffH < 24) return `${diffH}h ago`
+  const diffDays = Math.floor(diffH / 24)
+  return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`
+}
+
+function mapCustomersForTab(rawCustomers: any[], activeCard: any) {
+  const total = activeCard?.stampsRequired || 8
+  return rawCustomers.map(c => ({
+    id: c.id,
+    name: c.name,
+    email: c.email,
+    progress: c.stamps ?? 0,
+    total,
+    dynamicField: c.favoriteDrink || (c.formResponses?.[0]?.value ?? '—'),
+    status: c.status,
+    joined: c.joinedAt,
+    dob: c.birthdate || '—',
+    preference: c.favoriteFood
+      ? `${c.favoriteFood === 'sweet' ? 'Dulce' : 'Salado'}${c.timeVisit ? ' · ' + (c.timeVisit === 'morning' ? 'Mañana' : 'Tarde') : ''}`
+      : '—',
+    lastActivity: formatRelativeTime(c.lastUpdate),
+    // No tenemos todavía un historial de canjes por cliente en el modelo de
+    // datos (solo el conteo agregado del negocio en rewards-stats) — queda
+    // en 0 hasta que se agregue esa colección/campo.
+    totalRedeemed: 0,
+  }))
+}
+
 // ─── CSS ──────────────────────────────────────────────────────────────────────
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap');
@@ -803,7 +839,7 @@ export default function DashboardPage() {
     switch (active) {
       case 'overview':      return <OverviewTab t={t} analyticsData={analyticsData} rewardsData={rewardsData} cards={cards} />
       case 'customers': return customers.length > 0
-        ? <CustomersTab customers={customers} dynamicFieldLabel="Bebida favorita" />
+        ? <CustomersTab customers={mapCustomersForTab(customers, cards.find((c: any) => c.isActive) || cards[0])} dynamicFieldLabel="Bebida favorita" />
         : <div className="db-content"><EmptyState
             icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>}
             title="Todavía no tenés clientes registrados"
