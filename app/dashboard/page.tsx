@@ -292,13 +292,50 @@ function OverviewTab({ t, analyticsData, rewardsData, detailedAnalytics, cards }
   const inactiveUsers = analyticsData?.inactive       ?? m.inactiveUsers
   const nearPrize     = rewardsData !== null ? (rewardsData?.nearPrize ?? 0) : m.nearPrize  
   const newDelta      = analyticsData?.newDelta       ?? m.newSignUpsDelta
-  const weeklyVisits  = analyticsData?.weeklyVisits   ?? null
   const hasStamp      = activeCards.some((c: any) => c.type === 'stamp')
   const hasMembership = activeCards.some((c: any) => c.type === 'membership')
   const hasPoints     = activeCards.some((c: any) => c.type === 'points')
   const initials = (n: string) => n.split(' ').map((w: string) => w[0]).join('')
 
   const stampCard = activeCards.find((c: any) => c.type === 'stamp')
+  const primaryCardType = activeCards[0]?.type || 'stamp'
+  const CHART_LABELS: Record<string, { title: string; unit: string }> = {
+    stamp:      { title: 'Sellos otorgados',     unit: 'sellos otorgados' },
+    points:     { title: 'Puntos acumulados',    unit: 'puntos otorgados' },
+    membership: { title: 'Visitas registradas',  unit: 'visitas' },
+  }
+  const chartCfg = CHART_LABELS[primaryCardType] || CHART_LABELS.stamp
+
+  const [granularity, setGranularity] = useState<'weekly' | 'monthly'>('weekly')
+  const [hoveredBar, setHoveredBar] = useState<string | null>(null)
+  const [monthlyVisits, setMonthlyVisits] = useState<any[] | null>(null)
+  const [chartLoading, setChartLoading] = useState(false)
+
+  async function switchGranularity(g: 'weekly' | 'monthly') {
+    if (g === granularity) return
+    setGranularity(g)
+    if (g === 'weekly') return // ya lo tenemos en analyticsData, no hace falta refetch
+    const businessId = localStorage.getItem('stampa_business_id')
+    if (!businessId) return
+    setChartLoading(true)
+    try {
+      const res = await fetch(`http://localhost:5002/api/businesses/${businessId}/analytics?granularity=monthly`, {
+        headers: { Authorization: 'Bearer ' + localStorage.getItem('stampa_token') }
+      })
+      const data = await res.json()
+      setMonthlyVisits(data.visitsOverTime || [])
+    } catch (err) {
+      console.error('Error loading monthly chart:', err)
+    } finally {
+      setChartLoading(false)
+    }
+  }
+
+  const weeklyVisits = granularity === 'monthly' ? monthlyVisits : (analyticsData?.visitsOverTime ?? null)
+  const chartMax = weeklyVisits ? Math.max(...weeklyVisits.map((w: any) => w.visits), 1) : 5000
+  // 4 líneas de referencia del eje Y, redondeadas a algo legible
+  const axisSteps = [1, 0.75, 0.5, 0.25, 0].map(f => Math.round(chartMax * f))
+
   const ADVANCED = [
     { v: `${detailedAnalytics?.recurringRate ?? 0}%`, l: t('recurring' as any),       color: '#5B8C5A',  bg: 'rgba(91,140,90,.1)'   },
     { v: `${detailedAnalytics?.avgProgress ?? 0}`,    l: t('avg_progress' as any),    color: '#185FA5',  bg: 'rgba(24,95,165,.1)'   },
@@ -337,19 +374,51 @@ function OverviewTab({ t, analyticsData, rewardsData, detailedAnalytics, cards }
       {/* Growth chart + near prize */}
       <div className="ov-two-col">
         <div className="db-card">
-          <div className="ov-card-title">{t('customer_growth' as any)}</div>
-          <div className="ov-card-sub">Últimas 8 semanas</div>
-          <div className="ov-bars">
-            {(weeklyVisits || mockData.customerGrowth.map(({ month, users }: any) => ({ label: month, visits: users }))).map(({ label, visits }: any) => {
-              const maxVal = weeklyVisits ? Math.max(...weeklyVisits.map((w: any) => w.visits), 1) : 5000
-              return (
-                <div key={label} className="ov-bar-col">
-                  <div className="ov-bar-fill" style={{ height: `${(visits / maxVal) * 100}%` }} />
-                  <div className="ov-bar-label">{label}</div>
-                </div>
-              )
-            })}
+          <div className="ov-card-title-row">
+            <div>
+              <div className="ov-card-title">{chartCfg.title}</div>
+              <div className="ov-card-sub">{granularity === 'weekly' ? 'Últimas 8 semanas' : 'Últimos 8 meses'}</div>
+            </div>
+            <div className="ov-granularity-toggle">
+              <button className={`ov-gran-btn${granularity === 'weekly' ? ' ov-gran-btn--on' : ''}`} onClick={() => switchGranularity('weekly')}>8 semanas</button>
+              <button className={`ov-gran-btn${granularity === 'monthly' ? ' ov-gran-btn--on' : ''}`} onClick={() => switchGranularity('monthly')}>8 meses</button>
+            </div>
           </div>
+          {chartLoading
+            ? <div className="ov-chart-loading">Cargando...</div>
+            : <div className="ov-chart-wrap">
+                <div className="ov-chart-axis">
+                  {axisSteps.map((v, i) => <span key={i}>{v}</span>)}
+                </div>
+                <div className="ov-chart-plot">
+                  <div className="ov-chart-gridlines">
+                    {axisSteps.map((_, i) => <div key={i} className="ov-chart-gridline" />)}
+                  </div>
+                  <div className="ov-bars">
+                    {(weeklyVisits || mockData.customerGrowth.map(({ month, users }: any) => ({ label: month, visits: users }))).map(({ label, visits }: any) => (
+                      <div
+                        key={label}
+                        className="ov-bar-col"
+                        onMouseEnter={() => setHoveredBar(label)}
+                        onMouseLeave={() => setHoveredBar(null)}
+                      >
+                        {hoveredBar === label && (
+                          <div className="ov-bar-tooltip">
+                            {label} · {visits} {chartCfg.unit}
+                            <div className="ov-bar-tooltip-arrow" />
+                          </div>
+                        )}
+                        <div
+                          className={`ov-bar-fill${hoveredBar === label ? ' ov-bar-fill--active' : ''}`}
+                          style={{ height: `${(visits / chartMax) * 100}%` }}
+                        />
+                        <div className="ov-bar-label">{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+          }
         </div>
         <div className="db-card ov-near-card">
           <div className="ov-card-title">{t('near_prize' as any)}</div>
@@ -682,9 +751,22 @@ const CSS = `
   .ov-card-title{font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:13.5px;color:#2B2620;margin-bottom:2px;}
   .ov-card-sub{font-size:11px;color:rgba(43,38,32,.45);margin-bottom:12px;}
   .ov-card-title-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
-  .ov-bars{display:flex;align-items:flex-end;gap:8px;height:90px;margin-top:8px;}
-  .ov-bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end;}
-  .ov-bar-fill{width:100%;background:#C75D3A;border-radius:4px 4px 0 0;min-height:4px;}
+  .ov-granularity-toggle{display:flex;gap:6px;}
+  .ov-gran-btn{font-size:11px;padding:5px 11px;border-radius:20px;border:1.5px solid rgba(43,38,32,.15);background:none;color:rgba(43,38,32,.5);cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s;white-space:nowrap;}
+  .ov-gran-btn--on{border-color:#C75D3A;background:rgba(199,93,58,.08);color:#C75D3A;font-weight:600;}
+  .ov-chart-loading{font-size:12px;color:rgba(43,38,32,.4);padding:32px 0;text-align:center;}
+  .ov-chart-wrap{display:flex;gap:8px;margin-top:8px;}
+  .ov-chart-axis{display:flex;flex-direction:column;justify-content:space-between;height:90px;font-size:9.5px;color:rgba(43,38,32,.35);text-align:right;flex-shrink:0;padding-bottom:16px;}
+  .ov-chart-plot{position:relative;flex:1;}
+  .ov-chart-gridlines{position:absolute;top:0;left:0;right:0;height:90px;display:flex;flex-direction:column;justify-content:space-between;pointer-events:none;}
+  .ov-chart-gridline{border-top:1px solid rgba(43,38,32,.07);}
+  .ov-bars{display:flex;align-items:flex-end;gap:8px;height:90px;position:relative;z-index:1;}
+  .ov-bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end;position:relative;}
+  .ov-bar-fill{width:100%;background:#C75D3A;border-radius:4px 4px 0 0;min-height:4px;cursor:default;transition:opacity .15s;}
+  .ov-bar-fill:hover{opacity:.8;}
+  .ov-bar-fill--active{box-shadow:0 0 0 2px rgba(199,93,58,.3);}
+  .ov-bar-tooltip{position:absolute;bottom:calc(100% + 10px);left:50%;transform:translateX(-50%);background:#2B2620;color:#fff;font-size:11px;font-weight:600;padding:6px 10px;border-radius:8px;white-space:nowrap;z-index:2;pointer-events:none;}
+  .ov-bar-tooltip-arrow{position:absolute;top:100%;left:50%;transform:translateX(-50%);width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid #2B2620;}
   .ov-bar-label{font-size:10px;color:rgba(43,38,32,.45);}
   .ov-near-card{display:flex;flex-direction:column;justify-content:center;text-align:center;}
   .ov-near-num{font-family:'Plus Jakarta Sans',sans-serif;font-size:48px;font-weight:800;color:#C75D3A;line-height:1;margin:8px 0 4px;}
