@@ -730,6 +730,12 @@ export default function DashboardPage() {
   const [notifHistory, setNotifHistory]             = useState<any[]>([])
   const [notifSentThisMonth, setNotifSentThisMonth] = useState(0)
   const [customers, setCustomers]                   = useState<any[]>([])
+  const [customersPage, setCustomersPage]           = useState(1)
+  const [customersTotalPages, setCustomersTotalPages] = useState(1)
+  const [customersTotal, setCustomersTotal]         = useState(0)
+  const [customersSearch, setCustomersSearch]       = useState('')
+  const [customersStatus, setCustomersStatus]       = useState<'all' | 'active' | 'inactive'>('all')
+  const [customersLoading, setCustomersLoading]     = useState(false)
   const [analyticsData, setAnalyticsData]           = useState<any>(null)
   const [rewardsData, setRewardsData]               = useState<any>(null)
   const [loading, setLoading]       = useState(true)
@@ -798,8 +804,11 @@ export default function DashboardPage() {
         if (analyticsRes.status === 'fulfilled') setAnalyticsData(analyticsRes.value)
         else console.error('analytics load error:', analyticsRes.reason)
 
-        if (customersRes.status === 'fulfilled') setCustomers(customersRes.value.customers || [])
-        else console.error('customers load error:', customersRes.reason)
+        if (customersRes.status === 'fulfilled') {
+          setCustomers(customersRes.value.customers || [])
+          setCustomersTotal(customersRes.value.total || 0)
+          setCustomersTotalPages(customersRes.value.pages || 1)
+        } else console.error('customers load error:', customersRes.reason)
 
         if (notifRes.status === 'fulfilled') {
           setNotifHistory(notifRes.value.history || [])
@@ -813,6 +822,31 @@ export default function DashboardPage() {
       console.error(err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function loadCustomers(page: number, search: string, status: 'all' | 'active' | 'inactive') {
+    if (!businessId) return
+    setCustomersLoading(true)
+    try {
+      const params = new URLSearchParams({ page: String(page), limit: '50' })
+      if (search) params.set('search', search)
+      if (status !== 'all') params.set('status', status)
+      const res = await fetch(`http://localhost:5002/api/businesses/${businessId}/customers?${params.toString()}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + localStorage.getItem('stampa_token'),
+        }
+      })
+      const data = await res.json()
+      setCustomers(data.customers || [])
+      setCustomersTotal(data.total || 0)
+      setCustomersTotalPages(data.pages || 1)
+      setCustomersPage(page)
+    } catch (err) {
+      console.error('Error loading customers page:', err)
+    } finally {
+      setCustomersLoading(false)
     }
   }
 
@@ -838,8 +872,24 @@ export default function DashboardPage() {
   function renderTab() {
     switch (active) {
       case 'overview':      return <OverviewTab t={t} analyticsData={analyticsData} rewardsData={rewardsData} cards={cards} />
-      case 'customers': return customers.length > 0
-        ? <CustomersTab customers={mapCustomersForTab(customers, cards.find((c: any) => c.isActive) || cards[0])} dynamicFieldLabel="Bebida favorita" />
+      case 'customers': return customersTotal > 0
+        ? <CustomersTab
+            customers={mapCustomersForTab(customers, cards.find((c: any) => c.isActive) || cards[0])}
+            dynamicFieldLabel="Bebida favorita"
+            page={customersPage}
+            totalPages={customersTotalPages}
+            total={customersTotal}
+            activeCount={analyticsData?.active ?? 0}
+            inactiveCount={analyticsData?.inactive ?? 0}
+            nearCount={rewardsData?.nearPrize ?? 0}
+            search={customersSearch}
+            statusFilter={customersStatus}
+            loading={customersLoading}
+            onSearchChange={(q: string) => { setCustomersSearch(q); loadCustomers(1, q, customersStatus) }}
+            onStatusFilterChange={(s: any) => { setCustomersStatus(s); loadCustomers(1, customersSearch, s) }}
+            onPageChange={(p: number) => loadCustomers(p, customersSearch, customersStatus)}
+            onRefresh={() => loadCustomers(customersPage, customersSearch, customersStatus)}
+          />
         : <div className="db-content"><EmptyState
             icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>}
             title="Todavía no tenés clientes registrados"

@@ -1,5 +1,5 @@
 'use client'
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useLang } from '@/data/i18n'
 
 interface Customer {
@@ -11,6 +11,23 @@ interface Customer {
 interface CustomersTabProps {
   customers: Customer[]
   dynamicFieldLabel?: string
+  // Server-side pagination + filtering — el backend ya soporta page/limit/
+  // search/status, así que en vez de traer todo y filtrar en memoria (que
+  // rompía apenas había más de una página de resultados), el padre maneja
+  // el fetch y esto solo dispara callbacks.
+  page: number
+  totalPages: number
+  total: number
+  activeCount: number
+  inactiveCount: number
+  nearCount: number
+  search: string
+  statusFilter: 'all' | 'active' | 'inactive'
+  loading?: boolean
+  onSearchChange: (q: string) => void
+  onStatusFilterChange: (s: 'all' | 'active' | 'inactive') => void
+  onPageChange: (page: number) => void
+  onRefresh: () => void
 }
 
 type SortKey = 'name' | 'progress' | 'status' | 'lastActivity'
@@ -125,25 +142,42 @@ function CustomerPanel({ customer, dynamicFieldLabel, onClose, onDelete }: {
   )
 }
 
-export function CustomersTab({ customers: initCustomers, dynamicFieldLabel = 'Premio' }: CustomersTabProps) {
+export function CustomersTab({
+  customers, dynamicFieldLabel = 'Premio',
+  page, totalPages, total, activeCount, inactiveCount, nearCount,
+  search, statusFilter, loading,
+  onSearchChange, onStatusFilterChange, onPageChange, onRefresh,
+}: CustomersTabProps) {
   const t = useLang()
-  const [search, setSearch]       = useState('')
-  const [statusFilter, setFilter] = useState<'all' | 'active' | 'inactive'>('all')
-  const [customers, setCustomers] = useState(initCustomers)
+  const [searchDraft, setSearchDraft] = useState(search)
   const [selected, setSelected]   = useState<Customer | null>(null)
+  const [deleting, setDeleting]   = useState(false)
+
+  // Debounce: esperamos que la persona termine de tipear antes de pegarle
+  // a la API con cada letra.
+  useEffect(() => {
+    const id = setTimeout(() => { if (searchDraft !== search) onSearchChange(searchDraft) }, 350)
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchDraft])
 
   async function deleteCustomer(id: string) {
     const businessId = localStorage.getItem('stampa_business_id')
-    if (businessId) {
-      try {
+    setDeleting(true)
+    try {
+      if (businessId) {
         await fetch(`http://localhost:5002/api/businesses/${businessId}/customers/${id}`, {
           method: 'DELETE',
           headers: { Authorization: 'Bearer ' + localStorage.getItem('stampa_token') }
         })
-      } catch (err) { console.error('Error deleting customer:', err) }
+      }
+      setSelected(null)
+      onRefresh() // el padre vuelve a pedir la página actual — cambia el total y puede correr la paginación
+    } catch (err) {
+      console.error('Error deleting customer:', err)
+    } finally {
+      setDeleting(false)
     }
-    setCustomers(customers.filter((c: Customer) => c.id !== id))
-    setSelected(null)
   }
   const [sortKey, setSortKey]     = useState<SortKey>('progress')
   const [sortDir, setSortDir]     = useState<SortDir>('desc')
@@ -153,18 +187,10 @@ export function CustomersTab({ customers: initCustomers, dynamicFieldLabel = 'Pr
     else { setSortKey(key); setSortDir('desc') }
   }
 
-  const filtered = sortCustomers(
-    customers.filter((c: Customer) => {
-      const q = search.toLowerCase()
-      return (c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q)) &&
-             (statusFilter === 'all' || c.status === statusFilter)
-    }),
-    sortKey, sortDir
-  )
-
-  const activeCount   = customers.filter((c: Customer) => c.status === 'active').length
-  const inactiveCount = customers.filter((c: Customer) => c.status === 'inactive').length
-  const nearCount     = customers.filter(isNearPrize).length
+  // El sort acá es solo sobre la página actual (50 clientes) — ordenar las
+  // 127 filas reales en el servidor requeriría que el backend soporte un
+  // parámetro de sort, que hoy no tiene (siempre ordena por lastUpdate).
+  const filtered = sortCustomers(customers, sortKey, sortDir)
 
   return (
     <>
@@ -180,6 +206,11 @@ export function CustomersTab({ customers: initCustomers, dynamicFieldLabel = 'Pr
         .ct-pill:hover{border-color:rgba(43,38,32,.25);}
         .ct-pill--on{background:rgba(199,93,58,.1);border-color:#C75D3A;color:#C75D3A;font-weight:600;}
         .ct-table-wrap{flex:1;overflow-y:auto;}
+        .ct-pagination{display:flex;align-items:center;justify-content:center;gap:16px;padding:12px 24px;border-top:1px solid rgba(43,38,32,.07);background:#FFFFFF;flex-shrink:0;}
+        .ct-page-btn{font-size:12px;font-weight:600;color:#C75D3A;background:none;border:1px solid rgba(199,93,58,.3);border-radius:8px;padding:6px 14px;cursor:pointer;transition:all .15s;}
+        .ct-page-btn:hover:not(:disabled){background:rgba(199,93,58,.08);}
+        .ct-page-btn:disabled{opacity:.35;cursor:not-allowed;color:rgba(43,38,32,.4);border-color:rgba(43,38,32,.15);}
+        .ct-page-label{font-size:11.5px;color:rgba(43,38,32,.5);}
         table.ct{width:100%;border-collapse:collapse;}
         table.ct thead{background:#FFFFFF;position:sticky;top:0;z-index:2;border-bottom:1px solid rgba(43,38,32,.08);}
         table.ct th{text-align:left;font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;color:rgba(43,38,32,.38);font-weight:700;padding:10px 14px;white-space:nowrap;user-select:none;cursor:pointer;}
@@ -252,6 +283,7 @@ export function CustomersTab({ customers: initCustomers, dynamicFieldLabel = 'Pr
           .ct-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
           table.ct{min-width:480px;}
           table.ct th,table.ct td{padding:9px 10px;}
+          .ct-pagination{flex-direction:column;gap:8px;padding:10px 14px;}
         }
         @media(max-width:480px){
           .ct-filter-pills{width:100%;}
@@ -264,18 +296,20 @@ export function CustomersTab({ customers: initCustomers, dynamicFieldLabel = 'Pr
           <div className="ct-toolbar">
             <div className="ct-search">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input placeholder={t('ct_search')} value={search} onChange={e => setSearch(e.target.value)} />
+              <input placeholder={t('ct_search')} value={searchDraft} onChange={e => setSearchDraft(e.target.value)} />
             </div>
             <div className="ct-filter-pills">
-              <button className={`ct-pill${statusFilter === 'all' ? ' ct-pill--on' : ''}`} onClick={() => setFilter('all')}>{t('ct_all')} ({customers.length})</button>
-              <button className={`ct-pill${statusFilter === 'active' ? ' ct-pill--on' : ''}`} onClick={() => setFilter('active')}>{t('ct_active')} ({activeCount})</button>
-              <button className={`ct-pill${statusFilter === 'inactive' ? ' ct-pill--on' : ''}`} onClick={() => setFilter('inactive')}>{t('ct_inactive')} ({inactiveCount})</button>
-              {nearCount > 0 && <button className="ct-pill" onClick={() => { setFilter('all'); setSortKey('progress'); setSortDir('desc') }}>{t('ct_near_prize')} ({nearCount})</button>}
+              <button className={`ct-pill${statusFilter === 'all' ? ' ct-pill--on' : ''}`} onClick={() => onStatusFilterChange('all')}>{t('ct_all')} ({total})</button>
+              <button className={`ct-pill${statusFilter === 'active' ? ' ct-pill--on' : ''}`} onClick={() => onStatusFilterChange('active')}>{t('ct_active')} ({activeCount})</button>
+              <button className={`ct-pill${statusFilter === 'inactive' ? ' ct-pill--on' : ''}`} onClick={() => onStatusFilterChange('inactive')}>{t('ct_inactive')} ({inactiveCount})</button>
+              {nearCount > 0 && <button className="ct-pill" onClick={() => { onStatusFilterChange('all'); setSortKey('progress'); setSortDir('desc') }}>{t('ct_near_prize')} ({nearCount})</button>}
             </div>
           </div>
 
           <div className="ct-table-wrap">
-            {filtered.length === 0
+            {loading
+              ? <div className="ct-empty"><div className="ct-empty-txt">Cargando...</div></div>
+              : filtered.length === 0
               ? <div className="ct-empty"><div className="ct-empty-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div className="ct-empty-txt">{t('ct_no_match')}</div></div>
               : <table className="ct">
                   <thead>
@@ -325,6 +359,14 @@ export function CustomersTab({ customers: initCustomers, dynamicFieldLabel = 'Pr
                 </table>
             }
           </div>
+
+          {totalPages > 1 && (
+            <div className="ct-pagination">
+              <button className="ct-page-btn" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>← Anterior</button>
+              <span className="ct-page-label">Página {page} de {totalPages} · {total} clientes</span>
+              <button className="ct-page-btn" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>Siguiente →</button>
+            </div>
+          )}
         </div>
 
         {selected && <CustomerPanel customer={selected} dynamicFieldLabel={dynamicFieldLabel} onClose={() => setSelected(null)} onDelete={deleteCustomer} />}
