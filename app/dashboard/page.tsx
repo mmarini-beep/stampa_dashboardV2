@@ -331,16 +331,16 @@ function OverviewTab({ t, analyticsData, rewardsData, detailedAnalytics, cards }
     }
   }
 
-  const weeklyVisits = granularity === 'monthly' ? monthlyVisits : (analyticsData?.visitsOverTime ?? null)
+  const weeklyVisits = granularity === 'monthly' ? monthlyVisits : (analyticsData?.weeklyVisits ?? null)
   const chartMax = weeklyVisits ? Math.max(...weeklyVisits.map((w: any) => w.visits), 1) : 5000
   // 4 líneas de referencia del eje Y, redondeadas a algo legible
   const axisSteps = [1, 0.75, 0.5, 0.25, 0].map(f => Math.round(chartMax * f))
 
   const ADVANCED = [
-    { v: `${detailedAnalytics?.recurringRate ?? 0}%`, l: t('recurring' as any),       color: '#5B8C5A',  bg: 'rgba(91,140,90,.1)'   },
-    { v: `${detailedAnalytics?.avgProgress ?? 0}`,    l: t('avg_progress' as any),    color: '#185FA5',  bg: 'rgba(24,95,165,.1)'   },
-    { v: `${detailedAnalytics?.comparison?.[2]?.current ?? 0}%`, l: t('redemption_rate' as any), color: '#C75D3A',  bg: 'rgba(199,93,58,.1)'   },
-    { v: `${stampCard?.stampsRequired ?? 0}`, l: t('visits_to_prize' as any), color: '#9C7530',  bg: 'rgba(212,162,76,.15)' },
+    { v: `${analyticsData?.recurringRate ?? m.metrics?.recurringRate ?? 0}%`, l: t('recurring' as any), color: '#5B8C5A', bg: 'rgba(91,140,90,.1)' },
+    { v: analyticsData?.total > 0 ? `${Math.round((analyticsData?.active / analyticsData?.total) * 100)}%` : '0%', l: t('avg_progress' as any), color: '#185FA5', bg: 'rgba(24,95,165,.1)' },
+    { v: `${analyticsData?.redemptionRate ?? 0}%`, l: t('redemption_rate' as any), color: '#C75D3A', bg: 'rgba(199,93,58,.1)' },
+    { v: `${stampCard?.stampsRequired ?? 9}`, l: t('visits_to_prize' as any), color: '#9C7530', bg: 'rgba(212,162,76,.15)' },
   ]
 
   const TIER_MEMBERS: Record<string, number> = { '1': 111, '2': 89, '3': 52, '4': 15 }
